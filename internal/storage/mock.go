@@ -9,15 +9,12 @@ type ToMock struct {
 }
 
 func (stormock *ToMock) GetCatalogByUser(ctx context.Context) {
-	return
 }
 
 func (stormock *ToMock) NewItems(ctx context.Context) {
-	return
 }
 
 func (stormock *ToMock) UpdateItems(ctx context.Context) {
-	return
 }
 
 func (stormock *ToMock) LoginUser(ctx context.Context) {
@@ -39,15 +36,18 @@ func (stormock *ToMock) LoginUser(ctx context.Context) {
 		return
 	default:
 	}
-	return
 }
 
 func (stormock *ToMock) CreateUser(ctx context.Context) {
-	switch stormock.Data.User.Pass {
-	case "correct":
+	switch stormock.Data.User.Login {
+	case "ErrUserExists":
+		stormock.Data.Err = ErrUserExists
+		return
+	default:
+		stormock.Data.Err = nil
+		stormock.Data.User.UserID = "CorrectUserID"
 		return
 	}
-	return
 }
 
 func (stormock *ToMock) Connect(ctx context.Context) error {
@@ -55,5 +55,4 @@ func (stormock *ToMock) Connect(ctx context.Context) error {
 }
 
 func (stormock *ToMock) Disconnect() {
-	return
 }

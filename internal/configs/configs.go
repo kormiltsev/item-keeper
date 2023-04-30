@@ -28,12 +28,12 @@ type ServiceConfigs struct {
 var (
 	ServiceConfig = ServiceConfigs{}
 	onceUpload    sync.Once
+	debugmod      bool
 )
 
 // UploadConfigs gets parameters from Flags, ENV(priority), file.json(low priority).
 func UploadConfigs() *ServiceConfigs {
 	onceUpload.Do(func() {
-		ServiceConfig.SetDefaultConfigs()
 
 		// from flags
 		ServiceConfig.Flags()
@@ -47,6 +47,8 @@ func UploadConfigs() *ServiceConfigs {
 		if ServiceConfig.ConfigFile != "" {
 			ServiceConfig.FromConfigFile()
 		}
+
+		ServiceConfig.SetDefaultConfigs()
 
 		// in case `env:"GRPC_PORT"` = 8080 (port only) or host:port/something
 		host, port, err := net.SplitHostPort(ServiceConfig.GRPCport)
@@ -69,10 +71,11 @@ func UploadConfigs() *ServiceConfigs {
 
 // SetDefaultConfigs set default parameters
 func (sc ServiceConfigs) SetDefaultConfigs() {
-	ServiceConfig = ServiceConfigs{
-		GRPCport:   defaultgrpcport,
-		DBlink:     defaultdb,
-		ConfigFile: "",
+	if ServiceConfig.GRPCport == "" {
+		ServiceConfig.GRPCport = defaultgrpcport
+	}
+	if ServiceConfig.DBlink == "" || debugmod {
+		ServiceConfig.DBlink = defaultdb
 	}
 }
 
@@ -95,6 +98,8 @@ func (sc *ServiceConfigs) Flags() {
 
 	flag.StringVar(&sc.DBlink, "dblink", sc.DBlink, "database dsn")
 	flag.StringVar(&sc.DBlink, "d", sc.DBlink, "database dsn (shorthand)")
+
+	flag.BoolVar(&debugmod, "mock", debugmod, "debug case. using mockDB")
 
 	flag.Parse()
 }

@@ -7,6 +7,13 @@ import (
 )
 
 func main() {
+	// chan close signal
+	var chclose = make(chan struct{})
+	// start server
 	ctx := context.Background()
-	server.StartServer(ctx)
+	go server.StartServer(ctx, chclose)
+
+	server.StartServerGRPC(":3333")
+
+	close(chclose)
 }

@@ -1,0 +1,4 @@
+{
+    "grpc_port": ":4444",
+    "database_dsn": ""
+}

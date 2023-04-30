@@ -6,6 +6,7 @@ import "errors"
 type User struct {
 	Login       string
 	Pass        string
+	UserID      string
 	LastUpdate  string
 	DateCreated string
 	Error       error
@@ -33,4 +34,5 @@ type Uitem struct {
 var (
 	ErrLoginNotFound = errors.New(`login not found`)
 	ErrPasswordWrong = errors.New(`wrong password`)
+	ErrUserExists    = errors.New(`user exists`)
 )
