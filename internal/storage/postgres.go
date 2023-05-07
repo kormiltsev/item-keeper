@@ -25,22 +25,20 @@ type ToPostgres struct {
 // Disconnect()
 
 func (postg *ToPostgres) GetCatalogByUser(ctx context.Context) {
-	return
 }
 
 func (postg *ToPostgres) NewItems(ctx context.Context) {
-	return
 }
 
 func (postg *ToPostgres) UpdateItems(ctx context.Context) {
-	return
+}
+
+func (postg *ToPostgres) DeleteItem(ctx context.Context) {
 }
 
 func (postg *ToPostgres) CreateUser(ctx context.Context) {
-	return
 }
 func (postg *ToPostgres) LoginUser(ctx context.Context) {
-	return
 }
 
 // Connect make connection with DB or panic

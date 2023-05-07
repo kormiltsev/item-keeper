@@ -22,6 +22,7 @@ message Uitem {
     repeated Parameter params = 4;
     repeated Image images = 5;
     string userid = 6;
+    int64 lastupdate = 7;
 }
 
 message RegUserRequest {
@@ -48,6 +49,7 @@ message AddItemRequest {
 
 message AddItemResponse {
     Uitem uitem = 1;
+    int64 oldLastUpdate = 2;
 }
 
 message UpdateItemRequest {
@@ -56,6 +58,7 @@ message UpdateItemRequest {
 
 message UpdateItemResponse {
     Uitem uitem = 1;
+    int64 oldLastUpdate = 2;
 }
 
 message DeleteItemRequest {
@@ -64,14 +67,18 @@ message DeleteItemRequest {
 }
 
 message DeleteItemResponse {
+    int64 oldLastUpdate = 1;
+    int64 lastUpdate = 2;
 }
 
 message GetCatalogRequest {
     string userid = 1;
+    int64 lastUpdate = 2;
 }
 
 message GetCatalogResponse {
     repeated Uitem uitem = 1;
+    int64 lastUpdate = 2;
 }
 
 message PicturesRequest {
@@ -87,6 +94,7 @@ service ItemKeeper {
   rpc RegUser(RegUserRequest) returns (RegUserResponse);
   rpc LogUser(LogUserRequest) returns (LogUserResponse);
   rpc AddItem(AddItemRequest) returns (AddItemResponse);
+  rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
   rpc UpdateItem(UpdateItemRequest) returns (UpdateItemResponse);
   rpc GetCatalog(GetCatalogRequest) returns (GetCatalogResponse);
   rpc Pictures(PicturesRequest) returns (stream PicturesResponse);

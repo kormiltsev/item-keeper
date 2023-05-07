@@ -14,15 +14,17 @@ import (
 
 // default values
 const (
-	defaultgrpcport = ":3333"
-	defaultdb       = "mock"
+	defaultgrpcport          = ":3333"
+	defaultdb                = "mock"
+	defaultfileserveraddress = "./data/keeper"
 )
 
 // ServiceConfigs is list of parameters
 type ServiceConfigs struct {
-	GRPCport   string `json:"grpc_port" env:"GRPC_PORT"`
-	DBlink     string `json:"database_dsn" env:"DATABASE_DSN"`
-	ConfigFile string `json:"-" env:"CONFIG_FILE"`
+	GRPCport          string `json:"grpc_port" env:"GRPC_PORT"`
+	DBlink            string `json:"database_dsn" env:"DATABASE_DSN"`
+	ConfigFile        string `json:"-" env:"CONFIG_FILE"`
+	FileServerAddress string `json:"fileserver_address" env:"FILESERVER_ADDRESS"`
 }
 
 var (
@@ -77,6 +79,9 @@ func (sc ServiceConfigs) SetDefaultConfigs() {
 	if ServiceConfig.DBlink == "" || debugmod {
 		ServiceConfig.DBlink = defaultdb
 	}
+	if ServiceConfig.FileServerAddress == "" {
+		ServiceConfig.FileServerAddress = defaultfileserveraddress
+	}
 }
 
 // Environment check ENV for parameters
@@ -98,6 +103,8 @@ func (sc *ServiceConfigs) Flags() {
 
 	flag.StringVar(&sc.DBlink, "dblink", sc.DBlink, "database dsn")
 	flag.StringVar(&sc.DBlink, "d", sc.DBlink, "database dsn (shorthand)")
+
+	flag.StringVar(&sc.DBlink, "fs", sc.DBlink, "file server address (folder)")
 
 	flag.BoolVar(&debugmod, "mock", debugmod, "debug case. using mockDB")
 
@@ -130,6 +137,10 @@ func (sc *ServiceConfigs) FromConfigFile() {
 
 		if sc.DBlink == "" {
 			sc.DBlink = envFromFile.DBlink
+		}
+
+		if sc.FileServerAddress == "" {
+			sc.FileServerAddress = envFromFile.FileServerAddress
 		}
 	}
 }

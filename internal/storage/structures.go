@@ -7,20 +7,22 @@ type User struct {
 	Login       string
 	Pass        string
 	UserID      string
-	LastUpdate  string
+	LastUpdate  int64
 	DateCreated string
 	Error       error
 }
 
 // to storage
 type Item struct {
-	ID          int
-	UserID      string
-	Name        string
-	Tags        []string
-	Parameters  map[string]string
-	PictureLink []string
-	Deleted     bool
+	ID         string
+	UserID     string
+	Name       string
+	Tags       []string
+	Parameters map[string]string
+	ImageLink  []string
+	TitleImage []byte
+	LastUpdate int64
+	Deleted    bool
 }
 
 type Uitem struct {
@@ -35,4 +37,5 @@ var (
 	ErrLoginNotFound = errors.New(`login not found`)
 	ErrPasswordWrong = errors.New(`wrong password`)
 	ErrUserExists    = errors.New(`user exists`)
+	ErrItemNotFound  = errors.New(`item not found`)
 )

@@ -13,6 +13,7 @@ import (
 )
 
 func StartServer(ctx context.Context, close chan struct{}) {
+
 	con := configs.UploadConfigs()
 	log.Println("configs uploaded:", con)
 
@@ -28,6 +29,12 @@ func StartServer(ctx context.Context, close chan struct{}) {
 	mockDB(ctx, uitem)
 	// ==========
 
+	// test file storage available
+	err = storage.FileStoragePing(configs.ServiceConfig.FileServerAddress)
+	if err != nil {
+		log.Println("file storage fail:", err)
+	}
+	// ===========================
 	<-close
 }
 

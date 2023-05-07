@@ -22,6 +22,7 @@ const (
 	ItemKeeper_RegUser_FullMethodName    = "/item_keeper.ItemKeeper/RegUser"
 	ItemKeeper_LogUser_FullMethodName    = "/item_keeper.ItemKeeper/LogUser"
 	ItemKeeper_AddItem_FullMethodName    = "/item_keeper.ItemKeeper/AddItem"
+	ItemKeeper_DeleteItem_FullMethodName = "/item_keeper.ItemKeeper/DeleteItem"
 	ItemKeeper_UpdateItem_FullMethodName = "/item_keeper.ItemKeeper/UpdateItem"
 	ItemKeeper_GetCatalog_FullMethodName = "/item_keeper.ItemKeeper/GetCatalog"
 	ItemKeeper_Pictures_FullMethodName   = "/item_keeper.ItemKeeper/Pictures"
@@ -34,6 +35,7 @@ type ItemKeeperClient interface {
 	RegUser(ctx context.Context, in *RegUserRequest, opts ...grpc.CallOption) (*RegUserResponse, error)
 	LogUser(ctx context.Context, in *LogUserRequest, opts ...grpc.CallOption) (*LogUserResponse, error)
 	AddItem(ctx context.Context, in *AddItemRequest, opts ...grpc.CallOption) (*AddItemResponse, error)
+	DeleteItem(ctx context.Context, in *DeleteItemRequest, opts ...grpc.CallOption) (*DeleteItemResponse, error)
 	UpdateItem(ctx context.Context, in *UpdateItemRequest, opts ...grpc.CallOption) (*UpdateItemResponse, error)
 	GetCatalog(ctx context.Context, in *GetCatalogRequest, opts ...grpc.CallOption) (*GetCatalogResponse, error)
 	Pictures(ctx context.Context, in *PicturesRequest, opts ...grpc.CallOption) (ItemKeeper_PicturesClient, error)
@@ -68,6 +70,15 @@ func (c *itemKeeperClient) LogUser(ctx context.Context, in *LogUserRequest, opts
 func (c *itemKeeperClient) AddItem(ctx context.Context, in *AddItemRequest, opts ...grpc.CallOption) (*AddItemResponse, error) {
 	out := new(AddItemResponse)
 	err := c.cc.Invoke(ctx, ItemKeeper_AddItem_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *itemKeeperClient) DeleteItem(ctx context.Context, in *DeleteItemRequest, opts ...grpc.CallOption) (*DeleteItemResponse, error) {
+	out := new(DeleteItemResponse)
+	err := c.cc.Invoke(ctx, ItemKeeper_DeleteItem_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +142,7 @@ type ItemKeeperServer interface {
 	RegUser(context.Context, *RegUserRequest) (*RegUserResponse, error)
 	LogUser(context.Context, *LogUserRequest) (*LogUserResponse, error)
 	AddItem(context.Context, *AddItemRequest) (*AddItemResponse, error)
+	DeleteItem(context.Context, *DeleteItemRequest) (*DeleteItemResponse, error)
 	UpdateItem(context.Context, *UpdateItemRequest) (*UpdateItemResponse, error)
 	GetCatalog(context.Context, *GetCatalogRequest) (*GetCatalogResponse, error)
 	Pictures(*PicturesRequest, ItemKeeper_PicturesServer) error
@@ -149,6 +161,9 @@ func (UnimplementedItemKeeperServer) LogUser(context.Context, *LogUserRequest) (
 }
 func (UnimplementedItemKeeperServer) AddItem(context.Context, *AddItemRequest) (*AddItemResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddItem not implemented")
+}
+func (UnimplementedItemKeeperServer) DeleteItem(context.Context, *DeleteItemRequest) (*DeleteItemResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteItem not implemented")
 }
 func (UnimplementedItemKeeperServer) UpdateItem(context.Context, *UpdateItemRequest) (*UpdateItemResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateItem not implemented")
@@ -222,6 +237,24 @@ func _ItemKeeper_AddItem_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ItemKeeperServer).AddItem(ctx, req.(*AddItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ItemKeeper_DeleteItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ItemKeeperServer).DeleteItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ItemKeeper_DeleteItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ItemKeeperServer).DeleteItem(ctx, req.(*DeleteItemRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -301,6 +334,10 @@ var ItemKeeper_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AddItem",
 			Handler:    _ItemKeeper_AddItem_Handler,
+		},
+		{
+			MethodName: "DeleteItem",
+			Handler:    _ItemKeeper_DeleteItem_Handler,
 		},
 		{
 			MethodName: "UpdateItem",

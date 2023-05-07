@@ -23,6 +23,7 @@ func NewToStorage(uitem *Uitem) Storager {
 
 func NewItem() *Uitem {
 	return &Uitem{
+		User: User{},
 		List: make([]Item, 0),
 	}
 }
