@@ -32,16 +32,17 @@ var text = tview.NewTextView().
 
 func StartTui(ctx context.Context) {
 	// NewItem returns Uitems.List = []Item
-	client := client.NewClientConnector(userSettings.userID)
+	cli := client.NewClientConnector(userSettings.userID)
+	defer client.CloseConnection()
 
-	client.LastUpdate = userSettings.lastUpdate
+	cli.LastUpdate = userSettings.lastUpdate
 
 	// send lastupdate date from client to server and request catalog if LUclient != LUserver
-	client.ListOfItems(ctx)
+	cli.ListOfItems(ctx)
 
 	// if there new data on server, upload it to ram
-	if client.LastUpdate != userSettings.lastUpdate {
-		saveNewCatalog(client)
+	if cli.LastUpdate != userSettings.lastUpdate {
+		saveNewCatalog(cli)
 	}
 
 	itemsList.SetSelectedFunc(func(index int, name string, second_name string, shortcut rune) {
@@ -66,21 +67,21 @@ func StartTui(ctx context.Context) {
 			app.Stop()
 		case 97:
 			form.Clear(true)
-			addItemForm(client)
+			addItemForm(cli)
 			pages.SwitchToPage("Add Item")
 		case 100:
 			form.Clear(true)
-			delItemMapa(client)
+			delItemMapa(cli)
 			makeListOfItems()
 			pages.SwitchToPage("Menu")
 		case 101:
 			form.Clear(true)
-			editItemMapa(client)
+			editItemMapa(cli)
 			makeListOfItems()
 			pages.SwitchToPage("Menu")
 		case 117:
 			form.Clear(true)
-			updateCatalog(client)
+			updateCatalog(cli)
 			makeListOfItems()
 			pages.SwitchToPage("Menu")
 

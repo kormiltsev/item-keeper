@@ -171,7 +171,7 @@ func (itemserv *ItemServer) DeleteItem(ctx context.Context, in *pb.DeleteItemReq
 	// create DB interface
 	uitem := storage.NewItem()
 	uitem.User.UserID = in.Userid
-	uitem.List = append(uitem.List, storage.Item{ID: in.Itemid})
+	uitem.List = append(uitem.List, storage.Item{ID: in.Itemid, UserID: in.Userid})
 
 	// return DB structure
 	uitem.DB = storage.NewToStorage(uitem)

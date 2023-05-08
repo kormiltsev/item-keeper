@@ -130,7 +130,7 @@ func (cc *ClientConnector) AddNewItem(ctx context.Context) error {
 	cc.Items[0].Lastupdate = uit.Uitem.Lastupdate
 	cc.LastUpdate = uit.OldLastUpdate
 
-	log.Printf("cc LU:%d, uit OldLU:%d", cc.LastUpdate, uit.OldLastUpdate)
+	// log.Printf("cc LU:%d, uit OldLU:%d", cc.LastUpdate, uit.OldLastUpdate)
 	return nil
 }
 
