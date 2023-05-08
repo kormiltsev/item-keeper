@@ -30,6 +30,9 @@ func (postg *ToPostgres) GetCatalogByUser(ctx context.Context) {
 func (postg *ToPostgres) NewItems(ctx context.Context) {
 }
 
+func (postg *ToPostgres) UpdateItemsImageLinks() {
+}
+
 func (postg *ToPostgres) UpdateItems(ctx context.Context) {
 }
 

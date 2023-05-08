@@ -2,8 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/sha1"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -63,36 +61,18 @@ func (itemserv *ItemServer) AddItem(ctx context.Context, in *pb.AddItemRequest) 
 		TitleImage: make([]byte, 0),
 		UserID:     in.Uitem.Userid,
 	}
-	// uitem.List[0].Name = in.Uitem.Name
+
+	// save first image into item struct
+	if len(in.Uitem.Images[0].Body) > 0 {
+		itm.TitleImage = in.Uitem.Images[0].Body
+	}
+
 	// copy(uitem.List[0].Tags, in.Uitem.Tags)
 	// uitem.List[0].UserID = in.Uitem.Userid
 
 	// save parameters
 	for _, val := range in.Uitem.Params {
 		itm.Parameters[val.Name] = val.Value
-	}
-
-	// send file to filestorage
-	newfile := storage.NewFileToStorage()
-	newfile.UserID = in.Uitem.Userid
-
-	log.Println("list of files:", in.Uitem.Images)
-
-	for _, file := range in.Uitem.Images {
-		// change title and byte for every file
-		newfile.Title = file.Title
-		newfile.Data = &file.Body
-
-		h := sha1.New()
-		h.Write([]byte(file.Title + file.Body[:10]))
-		sha1_hash := hex.EncodeToString(h.Sum(nil))
-
-		newfile.ID =
-			// save every file
-			newfile.SaveNewFile()
-		// copy new file address to item
-		itm.ImageLink = append(itm.ImageLink, newfile.FileAddress)
-		log.Println("FILE addre:", newfile.FileAddress)
 	}
 
 	// save new item to list
@@ -106,6 +86,9 @@ func (itemserv *ItemServer) AddItem(ctx context.Context, in *pb.AddItemRequest) 
 		return nil, status.Errorf(codes.Internal, `unknown storage error`)
 	}
 
+	// send file to filestorage via other goroutines
+	go updateImagesInGoroutine(uitem.List[0].ID, in)
+
 	// create response
 	var response = pb.AddItemResponse{
 		Uitem:         &pb.Uitem{},
@@ -116,6 +99,28 @@ func (itemserv *ItemServer) AddItem(ctx context.Context, in *pb.AddItemRequest) 
 	response.Uitem.Lastupdate = uitem.List[0].LastUpdate
 
 	return &response, nil
+}
+
+func updateImagesInGoroutine(itemID string, in *pb.AddItemRequest) {
+	newfile := storage.NewFileToStorage()
+	newfile.UserID = in.Uitem.Userid
+
+	// if method=Update need to remove ald files
+	// if in.Uitem.Id != "" {
+	// 	newfile.ItemID = in.Uitem.Id
+	// 	newfile.DeleteOldFilesByItemID()
+	// }
+
+	// save file by file
+	for _, file := range in.Uitem.Images {
+		// change title and byte for every file
+		newfile.ItemID = itemID
+		newfile.Title = file.Title
+		newfile.Data = &file.Body
+
+		// save every file
+		newfile.SaveNewFile()
+	}
 }
 
 func (itemserv *ItemServer) UpdateItem(ctx context.Context, in *pb.UpdateItemRequest) (*pb.UpdateItemResponse, error) {
@@ -145,6 +150,10 @@ func (itemserv *ItemServer) UpdateItem(ctx context.Context, in *pb.UpdateItemReq
 			return nil, status.Errorf(codes.Internal, `unknown storage error`)
 		}
 	}
+
+	// update doesn't change fotoes for now
+	// // send file to filestorage
+	// go updateImagesInGoroutine(in.Uitem.Id, in)
 
 	// create response
 	var response = pb.UpdateItemResponse{

@@ -147,7 +147,7 @@ func addItemForm(cc *client.ClientConnector) *tview.Form {
 	// })
 
 	form.AddCheckbox("send file", false, func(fileadr bool) {
-		newitem.Images = append(newitem.Images, &pb.Image{Title: "./data/test.txt"})
+		newitem.Images = append(newitem.Images, &pb.Image{Title: "./data/sourceClient/test.txt"})
 	})
 
 	form.AddButton("Save", func() {

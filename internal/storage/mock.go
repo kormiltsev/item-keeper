@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	configs "github.com/kormiltsev/item-keeper/internal/configs"
@@ -14,6 +15,8 @@ type ToMock struct {
 }
 
 var lastupdate int64 = time.Now().UnixMilli()
+
+var mu sync.Mutex
 
 var ram = []Item{Item{
 	ID:         "PresetItemID",
@@ -49,7 +52,10 @@ func (stormock *ToMock) NewItems(ctx context.Context) {
 		stormock.Data.List[i].ID = fmt.Sprintf("newupload_%d", len(ram))
 		// ram = append(ram, v)
 	}
+
+	mu.Lock()
 	ram = append(ram, stormock.Data.List...)
+	mu.Unlock()
 
 	// send client last update time
 	stormock.Data.User.LastUpdate = lastupdate
@@ -63,10 +69,28 @@ func (stormock *ToMock) NewItems(ctx context.Context) {
 	stormock.Data.Err = nil
 }
 
+// UpdateItemsImageLinks add address of new files to storage
+func (stormock *ToMock) UpdateItemsImageLinks() {
+	stormock.Data.Err = nil
+
+	mu.Lock()
+	defer mu.Unlock()
+	for _, updateLinkItem := range stormock.Data.List {
+		for i, it := range ram {
+			if it.ID == updateLinkItem.ID {
+				it.ImageLink = append(it.ImageLink, updateLinkItem.ImageLink...)
+				ram[i] = it
+			}
+		}
+	}
+	stormock.Data.List = stormock.Data.List[:0]
+}
+
 func (stormock *ToMock) UpdateItems(ctx context.Context) {
 	log.Println("edited id:", stormock.Data.List[0].ID)
 
 	// mark item as deleted
+	mu.Lock()
 	for i, it := range ram {
 		if it.ID == stormock.Data.List[0].ID {
 			ram[i] = stormock.Data.List[0]
@@ -86,6 +110,8 @@ func (stormock *ToMock) UpdateItems(ctx context.Context) {
 			return
 		}
 	}
+	mu.Unlock()
+
 	stormock.Data.Err = ErrItemNotFound
 }
 
@@ -93,6 +119,7 @@ func (stormock *ToMock) DeleteItem(ctx context.Context) {
 	log.Println("stormock id:", stormock.Data.List[0].ID)
 
 	// mark item as deleted
+	mu.Lock()
 	for i, it := range ram {
 		if it.ID == stormock.Data.List[0].ID {
 			ram[i].Deleted = true
@@ -110,6 +137,8 @@ func (stormock *ToMock) DeleteItem(ctx context.Context) {
 			return
 		}
 	}
+	mu.Unlock()
+
 	stormock.Data.Err = ErrItemNotFound
 
 	log.Println("ram", ram)

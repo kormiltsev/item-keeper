@@ -2,11 +2,13 @@ package storage
 
 import (
 	"bufio"
-	"crypto/md5"
-	"fmt"
+	"crypto/sha1"
+	"encoding/hex"
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 
 	configs "github.com/kormiltsev/item-keeper/internal/configs"
 )
@@ -17,14 +19,11 @@ type FileStorageFile struct {
 	ItemID      string
 	Title       string
 	FileAddress string
-	Avatar      []byte
 	Data        *[]byte
 }
 
 func NewFileToStorage() *FileStorageFile {
-	return &FileStorageFile{
-		Avatar: make([]byte, 0),
-	}
+	return &FileStorageFile{}
 }
 
 func FileStoragePing(fileaddress string) error {
@@ -49,16 +48,28 @@ func FileStoragePing(fileaddress string) error {
 	return nil
 }
 
+// remove directory with all files and subdirectories in /<UserID>/<ItemID>
+func (fsf *FileStorageFile) DeleteOldFilesByItemID() {
+	path := filepath.Join(configs.ServiceConfig.FileServerAddress, fsf.UserID)
+	path = filepath.Join(path, fsf.ItemID)
+
+	// remove directory with all files and subdirectories
+	err := os.RemoveAll(path)
+	if err != nil {
+		log.Printf("can't delete files for item ID=%s, error:%v", fsf.ItemID, err)
+	}
+}
+
 func (fsf *FileStorageFile) SaveNewFile() {
 
-	path := filepath.Join(configs.ServiceConfig.FileServerAddress, fsf.UserID)
+	// create uniq id for image
+	h := sha1.New()
+	h.Write([]byte(fsf.ItemID + strconv.FormatInt(time.Now().UnixNano(), 16)))
+	sha1_hash := hex.EncodeToString(h.Sum(nil))
+	fsf.ID = sha1_hash
 
-	// create random file name
-	hash := md5.New()
-	b := []byte(fsf.Title)
-	fsf.ID = fmt.Sprintf("%x", hash.Sum(b))
-	path = filepath.Join(path, fsf.ID)
-	// path = filepath.Join(path, fsf.Title)
+	path := filepath.Join(configs.ServiceConfig.FileServerAddress, fsf.UserID)
+	path = filepath.Join(path, fsf.ItemID)
 
 	log.Println("path1:", path)
 
@@ -68,19 +79,13 @@ func (fsf *FileStorageFile) SaveNewFile() {
 		return
 	}
 
-	// path := configs.ServiceConfig.FileServerAddress + item.UserID + item.Title
-
-	// create random file name
-	// hash := md5.New()
-	b = []byte(fsf.UserID + fsf.Title)
-	path = filepath.Join(path, fmt.Sprintf("%x", hash.Sum(b)))
-
-	log.Println("path2:", path)
+	path = filepath.Join(path, fsf.ID)
 
 	err = os.WriteFile(path, *fsf.Data, 0644)
 	if err != nil {
 		log.Println("file storage error, check FILESERVERADDRESS available:", err)
 	}
+	chanIDofNewUploadedFiles() <- Item{ID: fsf.ItemID, ImageLink: []string{path}}
 }
 
 func GetTitle(filelink string) ([]byte, error) {

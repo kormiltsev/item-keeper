@@ -408,3 +408,9 @@
 {"level":"info","timestamp":"May 06 19:35:26.904105","message":"cc LU:1683416120887, uit OldLU:1683416120887"}
 {"level":"info","timestamp":"May 06 19:36:25.542379","message":"cc LU:1683416180169, uit OldLU:1683416180169"}
 {"level":"info","timestamp":"May 07 13:11:08.238145","message":"cc LU:1683416185542, uit OldLU:1683416185542"}
+{"level":"info","timestamp":"May 07 20:37:44.564507","message":"can't find file ./data/test.txt  Err: open ./data/test.txt: no such file or directory"}
+{"level":"info","timestamp":"May 07 20:37:44.566532","message":"cc LU:1683505820090, uit OldLU:1683505820090"}
+{"level":"info","timestamp":"May 07 20:41:33.765776","message":"can't find file ./data/test.txt  Err: open ./data/test.txt: no such file or directory"}
+{"level":"info","timestamp":"May 07 20:41:33.767481","message":"cc LU:1683506264566, uit OldLU:1683506264566"}
+{"level":"info","timestamp":"May 07 20:46:09.946169","message":"cc LU:1683506493767, uit OldLU:1683506493767"}
+{"level":"info","timestamp":"May 07 20:46:32.673244","message":"cc LU:1683506769945, uit OldLU:1683506769945"}

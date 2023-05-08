@@ -7,6 +7,7 @@ type Storager interface {
 	GetCatalogByUser(context.Context)
 	NewItems(context.Context)
 	UpdateItems(context.Context)
+	UpdateItemsImageLinks()
 	DeleteItem(context.Context)
 	CreateUser(context.Context)
 	LoginUser(context.Context)

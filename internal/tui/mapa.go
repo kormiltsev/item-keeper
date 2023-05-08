@@ -3,7 +3,6 @@ package tui
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -36,38 +35,26 @@ func updateCatalog(cc *client.ClientConnector) {
 
 func saveFilesFromResponse(cc *client.ClientConnector) {
 	path := filepath.Join(userSettings.datastorage, cc.UserID)
-	// hash := md5.New()
-	for i, item := range cc.Items {
-		for j, file := range item.Images {
+
+	for _, item := range cc.Items {
+		// create folder if not exists
+		err := os.MkdirAll(path, os.ModePerm)
+		if err != nil {
+			log.Println("file storage can't create directory to store file:", err)
+			return
+		}
+
+		for _, file := range item.Images {
 			if len(file.Body) != 0 {
-				path = file.Title
+				path = filepath.Join(path, item.Id)
+
+				err = os.WriteFile(path, file.Body, 0644)
+				if err != nil {
+					log.Println("file storage error, check FILESERVERADDRESS available:", err)
+				}
+
 			}
 		}
-	}
-	b := []byte(cc.Title)
-	path = filepath.Join(path, fmt.Sprintf("%x", hash.Sum(b)))
-	// path = filepath.Join(path, fsf.Title)
-
-	log.Println("path1:", path)
-
-	err := os.MkdirAll(path, os.ModePerm)
-	if err != nil {
-		log.Println("file storage can't create directory wile creating:", err)
-		return
-	}
-
-	// path := configs.ServiceConfig.FileServerAddress + item.UserID + item.Title
-
-	// create random file name
-	// hash := md5.New()
-	b = []byte(fsf.UserID + fsf.Title)
-	path = filepath.Join(path, fmt.Sprintf("%x", hash.Sum(b)))
-
-	log.Println("path2:", path)
-
-	err = os.WriteFile(path, *fsf.Data, 0644)
-	if err != nil {
-		log.Println("file storage error, check FILESERVERADDRESS available:", err)
 	}
 }
 
@@ -98,6 +85,8 @@ func AddNewItemsToMapa(cc *client.ClientConnector) {
 		}
 
 	}
+
+	cc.Items[0].Userid = userSettings.userID
 
 	// send to server
 	err := cc.AddNewItem(context.Background())
