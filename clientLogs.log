@@ -414,3 +414,9 @@
 {"level":"info","timestamp":"May 07 20:41:33.767481","message":"cc LU:1683506264566, uit OldLU:1683506264566"}
 {"level":"info","timestamp":"May 07 20:46:09.946169","message":"cc LU:1683506493767, uit OldLU:1683506493767"}
 {"level":"info","timestamp":"May 07 20:46:32.673244","message":"cc LU:1683506769945, uit OldLU:1683506769945"}
+{"level":"info","timestamp":"May 08 17:57:05.920023","message":"add item error from server: rpc error: code = Unavailable desc = connection error: desc = \"transport: Error while dialing: dial tcp :3333: connect: connection refused\""}
+{"level":"info","timestamp":"May 08 17:57:09.894705","message":"add item error from server: rpc error: code = Unavailable desc = connection error: desc = \"transport: Error while dialing: dial tcp :3333: connect: connection refused\""}
+{"level":"info","timestamp":"May 08 17:57:09.894832","message":"error in additind item to server: rpc error: code = Unavailable desc = connection error: desc = \"transport: Error while dialing: dial tcp :3333: connect: connection refused\""}
+{"level":"info","timestamp":"May 08 17:57:42.310355","message":"add item error from server: rpc error: code = Unavailable desc = error reading from server: EOF"}
+{"level":"info","timestamp":"May 08 17:57:42.310791","message":"error in additind item to server: rpc error: code = Unavailable desc = error reading from server: EOF"}
+{"level":"info","timestamp":"May 08 22:37:06.643398","message":"done"}

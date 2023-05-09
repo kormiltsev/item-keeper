@@ -26,7 +26,6 @@ var ram = []Item{Item{
 	ID:         "PresetItemID",
 	UserID:     "userPreset",
 	Name:       "Pre-uploaded in mock",
-	Tags:       []string{},
 	Parameters: map[string]string{"parameter preset": "preset value"},
 	ImageLink:  make([]string, 0),
 	TitleImage: make([]byte, 0),

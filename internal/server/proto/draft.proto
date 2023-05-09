@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package item_keeper;
+
+option go_package = "item_keeper/internal/server/proto";
+
+message Parameter {
+    string itemid = 1;
+    string userid =2;
+    bytes body = 3;
+}
+
+message File {
+    string itemid = 1;
+    bytes body = 2;
+}

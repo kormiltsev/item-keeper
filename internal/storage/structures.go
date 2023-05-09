@@ -17,7 +17,6 @@ type Item struct {
 	ID         string
 	UserID     string
 	Name       string
-	Tags       []string
 	Parameters map[string]string
 	ImageLink  []string
 	TitleImage []byte
