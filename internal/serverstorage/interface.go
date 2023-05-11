@@ -4,6 +4,8 @@ package serverstorage
 type Storager interface {
 	RegUser() error
 	AuthUser() error
+	PutItems() error
+	UploadFile() error
 	// UpdateItems(context.Context)
 	// UpdateItemsImageLinks()
 	// DeleteItem(context.Context)

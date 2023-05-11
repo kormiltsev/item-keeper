@@ -11,8 +11,10 @@ type Item struct {
 
 type File struct {
 	FileID  string
+	UserID  string
 	ItemID  string
 	Address string
+	Body    []byte
 }
 
 type User struct {

@@ -4,6 +4,7 @@ type ToStorage struct {
 	DB    Storager
 	User  *User
 	List  []Item
+	File  File
 	Error error
 }
 
@@ -28,4 +29,12 @@ func NewToStorage() *ToStorage {
 	return &ToStorage{
 		List: make([]Item, 0),
 	}
+}
+
+func NewItem() *Item {
+	return &Item{FilesID: make([]string, 0)}
+}
+
+func NewFile() *File {
+	return &File{Body: make([]byte, 0)}
 }

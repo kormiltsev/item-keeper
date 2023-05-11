@@ -6,13 +6,16 @@ type Parameter struct {
 }
 
 type Item struct {
-	UserID     string
-	ItemID     string
-	Parameters []Parameter
-	FileIDs    []string
+	UserID        string
+	ItemID        string
+	Parameters    []Parameter
+	FileIDs       []string
+	UploadAddress []string
 }
 
 type File struct {
+	FileID  string
+	UserID  string
 	ItemID  string
 	Address string // for storage
 	Body    []byte // not for store
