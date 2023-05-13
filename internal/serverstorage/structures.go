@@ -23,7 +23,7 @@ type User struct {
 	UserID        string
 	LastUpdate    int64
 	OldLastUpdate int64
-	ItemIDs       []string
+	// FileIDs       []string // used for request, not for storage
 }
 
 // Operational errors

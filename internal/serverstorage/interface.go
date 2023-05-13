@@ -7,6 +7,7 @@ type Storager interface {
 	PutItems() error
 	UploadFile() error
 	UpdateByLastUpdate() error
+	GetFileByFileID() error
 	// UpdateItems(context.Context)
 	// UpdateItemsImageLinks()
 	// DeleteItem(context.Context)

@@ -1,6 +1,7 @@
 package serverstorage
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
@@ -37,6 +38,7 @@ var storageaddress = "./data/serverstorage"
 
 var errFileIDExists = errors.New("file id exists")
 
+// RegUser register new user and returns UserID
 func (mock *ToMock) RegUser() error {
 
 	if mock.Data.User.Login == "" || mock.Data.User.Password == "" {
@@ -60,6 +62,7 @@ func (mock *ToMock) RegUser() error {
 	return nil
 }
 
+// AuthUser returns UserID, or error
 func (mock *ToMock) AuthUser() error {
 
 	mu.Lock()
@@ -67,7 +70,7 @@ func (mock *ToMock) AuthUser() error {
 
 	user, ok := Users[mock.Data.User.Login]
 	if !ok {
-		log.Println("USERNOTFOUND:", Users, "requested:", mock.Data.User.Login)
+		log.Println("user not found:", mock.Data.User.Login)
 		return ErrLoginNotFound
 	}
 
@@ -76,12 +79,12 @@ func (mock *ToMock) AuthUser() error {
 		return ErrPasswordWrong
 	}
 
-	log.Println("AUTH register: ", user.UserID)
 	mock.Data.User.UserID = user.UserID
 	mock.Data.User.LastUpdate = user.LastUpdate
 	return nil
 }
 
+// createUserID for internal use only
 func (mock *ToMock) createUserID() {
 	// create uniq userID
 	h := sha1.New()
@@ -100,6 +103,7 @@ func (mock *ToMock) createUserID() {
 	mock.Data.User.UserID = newID
 }
 
+// PutItems add or update item. just replaced by new one
 func (mock *ToMock) PutItems() error {
 	// error if empty
 	if len(mock.Data.List) == 0 {
@@ -120,12 +124,13 @@ func (mock *ToMock) PutItems() error {
 
 	for _, item := range mock.Data.List {
 		Items[item.ItemID] = &item
-		logToListOfChanges(item.UserID, item.ItemID) //mock.Data.User.UserID, item.ItemID)
+		logToListOfChanges(item.UserID, item.ItemID)
 	}
 
 	return nil
 }
 
+// internal use logger
 func logToListOfChanges(userid, itemid string) {
 
 	newlog := onechange{
@@ -137,6 +142,8 @@ func logToListOfChanges(userid, itemid string) {
 
 	log.Println("listOfChanges", listOfChanges)
 }
+
+// UploadFile accepts file, save it in storage and
 func (mock *ToMock) UploadFile() error {
 
 	// check body
@@ -148,12 +155,18 @@ func (mock *ToMock) UploadFile() error {
 	sum := sha256.Sum256([]byte(mock.Data.File.FileID + strconv.FormatInt(time.Now().UnixNano(), 16)))
 	mock.Data.File.FileID = hex.EncodeToString(sum[:])
 
+	// check for doubles
+	err := checkForDoublesFileID(mock.Data.File.FileID)
+	if errors.Is(err, errFileIDExists) {
+		return mock.UploadFile() // recreate id if fileID is already exists
+	}
+
 	// create path localstorage/userid/itemid
 	path := filepath.Join(storageaddress, mock.Data.File.UserID)
 	path = filepath.Join(path, mock.Data.File.ItemID)
 
 	// create folder if not exists
-	err := os.MkdirAll(path, os.ModePerm)
+	err = os.MkdirAll(path, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("can't create local directory %s, error:%v", path, err)
 	}
@@ -170,10 +183,17 @@ func (mock *ToMock) UploadFile() error {
 
 	// register file to Files and Items
 	err = addFileAddressToItems(&mock.Data.File)
-	if errors.Is(err, errFileIDExists) {
-		return mock.UploadFile() // recreate id if fileID is already exists
-	}
+	return err
+}
 
+func checkForDoublesFileID(fileid string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if _, ok := Files[fileid]; ok {
+		log.Println("fileID is doubled...")
+		return errFileIDExists
+	}
 	return nil
 }
 
@@ -199,6 +219,7 @@ func addFileAddressToItems(file *File) error {
 	return nil
 }
 
+// UpdateByLastUpdate accepts lastUpdate date from client and returns list if items that edited after lastUpdate
 func (mock *ToMock) UpdateByLastUpdate() error {
 	log.Println("lastupdate requested:", mock.Data.User.LastUpdate)
 	mock.Data.List = mock.Data.List[:0]
@@ -254,4 +275,42 @@ func returnItemsByIDs(itemsids ...string) []Item {
 		answer = append(answer, item)
 	}
 	return answer
+}
+
+func (mock *ToMock) GetFileByFileID() error {
+	var err error
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	address := Files[mock.Data.File.FileID].Address
+
+	//read file
+	mock.Data.File.Body, err = readFile(address)
+	if err != nil {
+		return fmt.Errorf("read file %s error:%v", address, err)
+	}
+	return nil
+}
+
+func readFile(fileaddress string) ([]byte, error) {
+	file, err := os.Open(fileaddress)
+
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	stats, statsErr := file.Stat()
+	if statsErr != nil {
+		return nil, statsErr
+	}
+
+	var size int64 = stats.Size()
+	bytes := make([]byte, size)
+
+	bufr := bufio.NewReader(file)
+	_, err = bufr.Read(bytes)
+
+	return bytes, err
 }

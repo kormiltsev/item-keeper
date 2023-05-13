@@ -59,7 +59,9 @@ func (file *File) SaveFileLocal(pass string) error {
 	file.Address = path
 
 	// register new file to local mapa
+	Catalog.mu.Lock()
 	Catalog.Files[file.FileID] = file
+	Catalog.mu.Unlock()
 
 	return nil
 }

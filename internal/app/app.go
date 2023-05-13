@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 
 	serverstorage "github.com/kormiltsev/item-keeper/internal/serverstorage"
@@ -14,8 +15,8 @@ import (
 )
 
 var (
-	currentuser            string = "AppUser"
-	currentuserpassword    string = "password"
+	currentuser string = "AppUser"
+	// currentuserpassword    string
 	currentuserencryptokey string = "manualLocalKey"
 	currentlastupdate      int64  = 0
 )
@@ -27,7 +28,7 @@ func RegUser(login, password string) error {
 	// encrypt login and password here
 	login, password = encodeLoginPass(login, password)
 	currentuser = login
-	currentuserpassword = password
+	// currentuserpassword = password
 
 	// add user creds to struct
 	user := serverstorage.User{
@@ -76,7 +77,7 @@ func AuthUser(login, password string) error {
 	// encrypt login and password here
 	login, password = encodeLoginPass(login, password)
 	currentuser = login
-	currentuserpassword = password
+	// currentuserpassword = password
 
 	// add user creds to struct
 	user := serverstorage.User{
@@ -250,6 +251,7 @@ func SearchItemByParameters() {
 	log.Println(ans)
 }
 
+// UpdateDataFromServer request lastUpdate from server and save items rfom response local
 func UpdateDataFromServer() {
 
 	// prepare to server
@@ -311,4 +313,58 @@ func UpdateDataFromServer() {
 		log.Println("can't save item local:", err)
 	}
 
+}
+
+// for now returns only 1 file
+func RequestFilesByFileID() {
+	// example random item
+	var itm *appstorage.Item
+	for _, item := range appstorage.Catalog.Items {
+		if len(item.FileIDs) != 0 {
+			itm = item
+			break
+		}
+	}
+	listOfIDs := make([]string, len(itm.FileIDs))
+	copy(listOfIDs, itm.FileIDs)
+	//====================
+
+	// prepare to server
+	file := serverstorage.NewFile()
+	file.FileID = listOfIDs[0]
+	file.UserID = currentuser
+
+	tostor := serverstorage.NewToStorage()
+	tostor.File = *file
+
+	tostor.DB = serverstorage.NewStorager(tostor)
+
+	// to server
+	err := tostor.DB.GetFileByFileID()
+	if err != nil {
+		log.Println("get file from server err:", err)
+		return
+	}
+
+	// copy to appstorage tipe
+	appfile := appstorage.NewFileStruct()
+	appfile.FileID = tostor.File.FileID
+	appfile.ItemID = tostor.File.ItemID
+	appfile.UserID = tostor.File.UserID
+	appfile.Body = make([]byte, len(tostor.File.Body))
+	copy(appfile.Body, tostor.File.Body)
+
+	// encode and save file local on client
+	err = appfile.SaveFileLocal(currentuserencryptokey)
+	if err != nil {
+		log.Println("can't save file on client:", err)
+	}
+
+	// to debug only
+	bytes, err := os.ReadFile(appfile.Address)
+	if err != nil {
+		log.Println("DEBUG: can't read file:", appfile.Address)
+	}
+	log.Println("File recieved: ", string(bytes[:20]), "...")
+	//===============
 }

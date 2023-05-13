@@ -32,4 +32,6 @@ func main() {
 
 	// search by parameters local on client's side
 	app.SearchItemByParameters()
+
+	app.RequestFilesByFileID()
 }
