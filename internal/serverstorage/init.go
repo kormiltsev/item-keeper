@@ -27,6 +27,7 @@ func NewStorager(tostor *ToStorage) Storager {
 
 func NewToStorage() *ToStorage {
 	return &ToStorage{
+		User: &User{},
 		List: make([]Item, 0),
 	}
 }

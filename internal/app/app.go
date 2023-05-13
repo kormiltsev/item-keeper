@@ -1,6 +1,9 @@
 package app
 
 import (
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"strconv"
@@ -11,8 +14,10 @@ import (
 )
 
 var (
-	currentuser         = "AppUser"
-	currentuserpassword = "password"
+	currentuser            string = "AppUser"
+	currentuserpassword    string = "password"
+	currentuserencryptokey string = "manualLocalKey"
+	currentlastupdate      int64  = 0
 )
 
 func RegUser(login, password string) error {
@@ -20,8 +25,9 @@ func RegUser(login, password string) error {
 	tostorage := serverstorage.NewToStorage()
 
 	// encrypt login and password here
-	//
-	// =============================
+	login, password = encodeLoginPass(login, password)
+	currentuser = login
+	currentuserpassword = password
 
 	// add user creds to struct
 	user := serverstorage.User{
@@ -43,10 +49,64 @@ func RegUser(login, password string) error {
 	}
 
 	// save local
-	appstorage.NewUser(tostorage.User.UserID)
+	appstorage.NewUser(tostorage.User.UserID, 0)
 
 	// save current user id
 	currentuser = tostorage.User.UserID
+	currentlastupdate = tostorage.User.LastUpdate
+
+	return nil
+}
+
+func encodeLoginPass(login, password string) (string, string) {
+	h := sha1.New()
+	h.Write([]byte(login))
+	login = hex.EncodeToString(h.Sum(nil))
+
+	sum := sha256.Sum256([]byte(login + password))
+	password = hex.EncodeToString(sum[:])
+
+	return login, password
+}
+
+func AuthUser(login, password string) error {
+	// create truct from storage
+	tostorage := serverstorage.NewToStorage()
+
+	// encrypt login and password here
+	login, password = encodeLoginPass(login, password)
+	currentuser = login
+	currentuserpassword = password
+
+	// add user creds to struct
+	user := serverstorage.User{
+		Login:    login,
+		Password: password,
+	}
+	tostorage.User = &user
+
+	// select DB interface
+	tostorage.DB = serverstorage.NewStorager(tostorage)
+	if tostorage.Error != nil {
+		return tostorage.Error
+	}
+
+	// reg user on server
+	err := tostorage.DB.AuthUser()
+	if err != nil {
+		log.Println("auth user error from server:", err)
+	}
+
+	// save local
+	// using NewUser() due to oneClient = oneUser rule (for now)
+	appstorage.NewUser(tostorage.User.UserID, 0)
+
+	// save current user id
+	currentuser = tostorage.User.UserID
+	currentlastupdate = 0
+
+	// and go get catalog from server
+	UpdateDataFromServer() // used currentuser and currentlastupdate
 
 	return nil
 }
@@ -66,7 +126,7 @@ func AddNewItem() {
 	// encode data
 	serveritem := serverstorage.NewItem()
 	serveritem.UserID = appitem.UserID
-	serveritem.Body, err = appitem.Encode(currentuserpassword)
+	serveritem.Body, err = appitem.Encode(currentuserencryptokey)
 	if err != nil {
 		log.Println("error encrypt item:", err)
 		return
@@ -102,7 +162,7 @@ func AddNewItem() {
 		file.Address = fileaddress
 
 		// read and encode file
-		err := file.PrepareFile(currentuserpassword)
+		err := file.PrepareFile(currentuserencryptokey)
 		if err != nil {
 			log.Println("can't prepare file", fileaddress, "error:", err)
 			continue
@@ -133,7 +193,7 @@ func AddNewItem() {
 		file.FileID = tostor.File.FileID
 
 		// save file local and register in Catalog.Files
-		err = file.SaveFileLocal(currentuserpassword)
+		err = file.SaveFileLocal(currentuserencryptokey)
 		if err != nil {
 			log.Println("Can't save file local:", err)
 			continue
@@ -188,4 +248,67 @@ func SearchItemByParameters() {
 		ans = fmt.Sprintf("%s%v\n", ans, item.Parameters)
 	}
 	log.Println(ans)
+}
+
+func UpdateDataFromServer() {
+
+	// prepare to server
+	tostor := serverstorage.NewToStorage()
+	tostor.User.UserID = currentuser
+	tostor.User.LastUpdate = currentlastupdate
+	tostor.DB = serverstorage.NewStorager(tostor)
+
+	// to server
+	err := tostor.DB.UpdateByLastUpdate()
+	if err != nil {
+		log.Println("put item to server err:", err)
+		return
+	}
+
+	if len(tostor.List) == 0 {
+		log.Println("everything updated")
+		return
+	}
+
+	// save item to Catalog, request interface
+	operator, erro := appstorage.ReturnOperator(tostor.User.UserID)
+	if erro != nil {
+		log.Println(erro)
+	}
+
+	answer := make([]*appstorage.Item, 0, len(tostor.List))
+
+	// for every item decode and add file ids into appstorage item
+	for _, itm := range tostor.List {
+
+		// decode to local item struct
+		newitem, err := appstorage.Decode(itm.Body, currentuserencryptokey)
+		if err != nil {
+			log.Println("error on decoding:", err)
+			continue
+		}
+
+		// upload file ids into local item
+		newitem.FileIDs = make([]string, 0, len(itm.FilesID))
+		for _, fileid := range itm.FilesID {
+			if len(fileid) == 0 {
+				continue
+			}
+			newitem.FileIDs = append(newitem.FileIDs, fileid)
+		}
+
+		log.Println(newitem)
+
+		// making answer slice of items
+		answer = append(answer, newitem)
+
+		log.Println(newitem)
+	}
+
+	// save local
+	err = operator.PutItems(answer...)
+	if err != nil {
+		log.Println("can't save item local:", err)
+	}
+
 }

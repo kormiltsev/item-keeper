@@ -37,7 +37,7 @@ type Operator struct {
 
 var ErrEmptyRequest = fmt.Errorf("empty request")
 
-func NewUser(userid string) {
+func NewUser(userid string, lastUpdate int64) {
 	Catalog.mu.Lock()
 	defer Catalog.mu.Unlock()
 
@@ -48,6 +48,7 @@ func NewUser(userid string) {
 		log.Printf("can't delete directory for userid = %s, error:%v", userid, err)
 	}
 
+	Catalog.LastUpdate = lastUpdate
 	Catalog.UserID = userid
 	Catalog.Items = map[string]*Item{}
 	Catalog.Files = map[string]*File{} // need to delete files
@@ -128,4 +129,13 @@ func (op *Operator) FindItemByParameter() error {
 		}
 	}
 	return nil
+}
+
+func ReturnIDs() []string {
+	answer := make([]string, len(Catalog.Items))
+	i := 0
+	for k := range Catalog.Items {
+		answer[i] = k
+	}
+	return answer
 }

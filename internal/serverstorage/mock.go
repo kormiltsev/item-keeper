@@ -18,16 +18,31 @@ type ToMock struct {
 	Data *ToStorage
 }
 
+type onechange struct {
+	userid  string
+	updated int64
+	itemid  string
+}
+
+// database realosation
 var mu = sync.Mutex{}
-var Users = map[string]*User{}
-var Items = map[string]*Item{}
-var Files = map[string]*File{}
+var Users = map[string]*User{} // key= login
+var Items = map[string]*Item{} // key = ItemID
+var Files = map[string]*File{} // key = FileID
+
+// log of changes
+var listOfChanges = []onechange{}
 
 var storageaddress = "./data/serverstorage"
 
 var errFileIDExists = errors.New("file id exists")
 
 func (mock *ToMock) RegUser() error {
+
+	if mock.Data.User.Login == "" || mock.Data.User.Password == "" {
+		return ErrEmptyRequest
+	}
+
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -37,41 +52,52 @@ func (mock *ToMock) RegUser() error {
 
 	mock.createUserID()
 
-	// save in users catalog
-	Users[mock.Data.User.UserID] = mock.Data.User
+	mock.Data.User.LastUpdate = time.Now().UnixMilli()
 
-	// log.Println("SERVER: ", Users)
+	// save in users catalog
+	Users[mock.Data.User.Login] = mock.Data.User
+
 	return nil
 }
 
 func (mock *ToMock) AuthUser() error {
+
 	mu.Lock()
 	defer mu.Unlock()
 
 	user, ok := Users[mock.Data.User.Login]
 	if !ok {
+		log.Println("USERNOTFOUND:", Users, "requested:", mock.Data.User.Login)
 		return ErrLoginNotFound
 	}
 
 	if user.Password != mock.Data.User.Password {
+		log.Println("wrong password")
 		return ErrPasswordWrong
 	}
 
+	log.Println("AUTH register: ", user.UserID)
 	mock.Data.User.UserID = user.UserID
+	mock.Data.User.LastUpdate = user.LastUpdate
 	return nil
 }
 
 func (mock *ToMock) createUserID() {
 	// create uniq userID
 	h := sha1.New()
-	h.Write([]byte(mock.Data.User.Password + strconv.FormatInt(time.Now().UnixNano(), 16)))
-	sha1_hash := hex.EncodeToString(h.Sum(nil))
+	h.Write([]byte(mock.Data.User.Login + strconv.FormatInt(time.Now().UnixNano(), 16)))
+	newID := hex.EncodeToString(h.Sum(nil))
 
-	if _, ok := Users[sha1_hash]; ok {
-		mock.createUserID()
+	// check for doubles
+	for _, user := range Users {
+		if user.UserID == newID && user.Login != mock.Data.User.Login {
+			// try again
+			mock.createUserID()
+			return
+		}
 	}
-
-	mock.Data.User.UserID = sha1_hash
+	// write to user new user ID
+	mock.Data.User.UserID = newID
 }
 
 func (mock *ToMock) PutItems() error {
@@ -94,12 +120,23 @@ func (mock *ToMock) PutItems() error {
 
 	for _, item := range mock.Data.List {
 		Items[item.ItemID] = &item
+		logToListOfChanges(item.UserID, item.ItemID) //mock.Data.User.UserID, item.ItemID)
 	}
 
-	log.Println("SERVER: got item:", mock.Data.List[0])
 	return nil
 }
 
+func logToListOfChanges(userid, itemid string) {
+
+	newlog := onechange{
+		userid:  userid,
+		updated: time.Now().UnixMilli(),
+		itemid:  itemid,
+	}
+	listOfChanges = append(listOfChanges, newlog)
+
+	log.Println("listOfChanges", listOfChanges)
+}
 func (mock *ToMock) UploadFile() error {
 
 	// check body
@@ -160,4 +197,61 @@ func addFileAddressToItems(file *File) error {
 	item.FilesID = append(item.FilesID, file.FileID)
 	Items[file.ItemID] = item
 	return nil
+}
+
+func (mock *ToMock) UpdateByLastUpdate() error {
+	log.Println("lastupdate requested:", mock.Data.User.LastUpdate)
+	mock.Data.List = mock.Data.List[:0]
+
+	// check last update date
+	listOfItems := returnItemIDChanged(mock.Data.User.UserID, mock.Data.User.LastUpdate)
+	if len(listOfItems) == 0 {
+		return nil
+	}
+
+	mock.Data.List = returnItemsByIDs(listOfItems...)
+	return nil
+}
+
+func returnItemIDChanged(userid string, lastupdate int64) []string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	answer := make([]string, 0)
+	for i := len(listOfChanges) - 1; i >= 0; i-- {
+		if listOfChanges[i].userid == userid && listOfChanges[i].updated > lastupdate {
+			answer = append(answer, listOfChanges[i].itemid)
+		}
+	}
+	return answer
+}
+
+func returnItemsByIDs(itemsids ...string) []Item {
+	mu.Lock()
+	defer mu.Unlock()
+
+	answer := make([]Item, 0)
+	for _, id := range itemsids {
+		itm, ok := Items[id]
+		if !ok {
+			log.Println("requested item ID not found, id =", id)
+			continue
+		}
+
+		// copy (not pointer)
+		item := Item{
+			ItemID:  itm.ItemID,
+			UserID:  itm.UserID,
+			Body:    itm.Body,
+			FilesID: make([]string, len(itm.FilesID)),
+		}
+
+		copy(item.FilesID, itm.FilesID)
+		// for i, fid := range itm.FilesID {
+		// 	item.FilesID[i] = fid
+		// }
+
+		answer = append(answer, item)
+	}
+	return answer
 }

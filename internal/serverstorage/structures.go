@@ -32,4 +32,5 @@ var (
 	ErrPasswordWrong = errors.New(`wrong password`)
 	ErrUserExists    = errors.New(`user exists`)
 	ErrItemNotFound  = errors.New(`item not found`)
+	ErrEmptyRequest  = errors.New(`empty request`)
 )

@@ -10,3 +10,20 @@ type ClientConnector struct {
 	Client     *pb.ItemKeeperClient
 	Error      error
 }
+
+{
+	UserId string
+	ItemID string
+	data []byte
+}
+
+type Param struct {
+	Name string
+	Value string
+} 
+
+type item struct {
+	UserID
+	ItemID
+Parameters []Param
+}
