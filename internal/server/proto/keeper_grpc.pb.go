@@ -19,13 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	ItemKeeper_RegUser_FullMethodName    = "/item_keeper.ItemKeeper/RegUser"
-	ItemKeeper_LogUser_FullMethodName    = "/item_keeper.ItemKeeper/LogUser"
-	ItemKeeper_AddItem_FullMethodName    = "/item_keeper.ItemKeeper/AddItem"
-	ItemKeeper_DeleteItem_FullMethodName = "/item_keeper.ItemKeeper/DeleteItem"
-	ItemKeeper_UpdateItem_FullMethodName = "/item_keeper.ItemKeeper/UpdateItem"
-	ItemKeeper_GetCatalog_FullMethodName = "/item_keeper.ItemKeeper/GetCatalog"
-	ItemKeeper_Pictures_FullMethodName   = "/item_keeper.ItemKeeper/Pictures"
+	ItemKeeper_RegUser_FullMethodName            = "/item_keeper.ItemKeeper/RegUser"
+	ItemKeeper_AuthUser_FullMethodName           = "/item_keeper.ItemKeeper/AuthUser"
+	ItemKeeper_PutItems_FullMethodName           = "/item_keeper.ItemKeeper/PutItems"
+	ItemKeeper_UploadFile_FullMethodName         = "/item_keeper.ItemKeeper/UploadFile"
+	ItemKeeper_UpdateByLastUpdate_FullMethodName = "/item_keeper.ItemKeeper/UpdateByLastUpdate"
+	ItemKeeper_GetFileByFileID_FullMethodName    = "/item_keeper.ItemKeeper/GetFileByFileID"
+	ItemKeeper_DeleteEntity_FullMethodName       = "/item_keeper.ItemKeeper/DeleteEntity"
 )
 
 // ItemKeeperClient is the client API for ItemKeeper service.
@@ -33,12 +33,12 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ItemKeeperClient interface {
 	RegUser(ctx context.Context, in *RegUserRequest, opts ...grpc.CallOption) (*RegUserResponse, error)
-	LogUser(ctx context.Context, in *LogUserRequest, opts ...grpc.CallOption) (*LogUserResponse, error)
-	AddItem(ctx context.Context, in *AddItemRequest, opts ...grpc.CallOption) (*AddItemResponse, error)
-	DeleteItem(ctx context.Context, in *DeleteItemRequest, opts ...grpc.CallOption) (*DeleteItemResponse, error)
-	UpdateItem(ctx context.Context, in *UpdateItemRequest, opts ...grpc.CallOption) (*UpdateItemResponse, error)
-	GetCatalog(ctx context.Context, in *GetCatalogRequest, opts ...grpc.CallOption) (*GetCatalogResponse, error)
-	Pictures(ctx context.Context, in *PicturesRequest, opts ...grpc.CallOption) (ItemKeeper_PicturesClient, error)
+	AuthUser(ctx context.Context, in *AuthUserRequest, opts ...grpc.CallOption) (*AuthUserResponse, error)
+	PutItems(ctx context.Context, in *PutItemsRequest, opts ...grpc.CallOption) (*PutItemsResponse, error)
+	UploadFile(ctx context.Context, in *UploadFileRequest, opts ...grpc.CallOption) (*UploadFileResponse, error)
+	UpdateByLastUpdate(ctx context.Context, in *UpdateByLastUpdateRequest, opts ...grpc.CallOption) (*UpdateByLastUpdateResponse, error)
+	GetFileByFileID(ctx context.Context, in *GetFileByFileIDRequest, opts ...grpc.CallOption) (*GetFileByFileIDResponse, error)
+	DeleteEntity(ctx context.Context, in *DeleteEntityRequest, opts ...grpc.CallOption) (*DeleteEntityResponse, error)
 }
 
 type itemKeeperClient struct {
@@ -58,81 +58,58 @@ func (c *itemKeeperClient) RegUser(ctx context.Context, in *RegUserRequest, opts
 	return out, nil
 }
 
-func (c *itemKeeperClient) LogUser(ctx context.Context, in *LogUserRequest, opts ...grpc.CallOption) (*LogUserResponse, error) {
-	out := new(LogUserResponse)
-	err := c.cc.Invoke(ctx, ItemKeeper_LogUser_FullMethodName, in, out, opts...)
+func (c *itemKeeperClient) AuthUser(ctx context.Context, in *AuthUserRequest, opts ...grpc.CallOption) (*AuthUserResponse, error) {
+	out := new(AuthUserResponse)
+	err := c.cc.Invoke(ctx, ItemKeeper_AuthUser_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *itemKeeperClient) AddItem(ctx context.Context, in *AddItemRequest, opts ...grpc.CallOption) (*AddItemResponse, error) {
-	out := new(AddItemResponse)
-	err := c.cc.Invoke(ctx, ItemKeeper_AddItem_FullMethodName, in, out, opts...)
+func (c *itemKeeperClient) PutItems(ctx context.Context, in *PutItemsRequest, opts ...grpc.CallOption) (*PutItemsResponse, error) {
+	out := new(PutItemsResponse)
+	err := c.cc.Invoke(ctx, ItemKeeper_PutItems_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *itemKeeperClient) DeleteItem(ctx context.Context, in *DeleteItemRequest, opts ...grpc.CallOption) (*DeleteItemResponse, error) {
-	out := new(DeleteItemResponse)
-	err := c.cc.Invoke(ctx, ItemKeeper_DeleteItem_FullMethodName, in, out, opts...)
+func (c *itemKeeperClient) UploadFile(ctx context.Context, in *UploadFileRequest, opts ...grpc.CallOption) (*UploadFileResponse, error) {
+	out := new(UploadFileResponse)
+	err := c.cc.Invoke(ctx, ItemKeeper_UploadFile_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *itemKeeperClient) UpdateItem(ctx context.Context, in *UpdateItemRequest, opts ...grpc.CallOption) (*UpdateItemResponse, error) {
-	out := new(UpdateItemResponse)
-	err := c.cc.Invoke(ctx, ItemKeeper_UpdateItem_FullMethodName, in, out, opts...)
+func (c *itemKeeperClient) UpdateByLastUpdate(ctx context.Context, in *UpdateByLastUpdateRequest, opts ...grpc.CallOption) (*UpdateByLastUpdateResponse, error) {
+	out := new(UpdateByLastUpdateResponse)
+	err := c.cc.Invoke(ctx, ItemKeeper_UpdateByLastUpdate_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *itemKeeperClient) GetCatalog(ctx context.Context, in *GetCatalogRequest, opts ...grpc.CallOption) (*GetCatalogResponse, error) {
-	out := new(GetCatalogResponse)
-	err := c.cc.Invoke(ctx, ItemKeeper_GetCatalog_FullMethodName, in, out, opts...)
+func (c *itemKeeperClient) GetFileByFileID(ctx context.Context, in *GetFileByFileIDRequest, opts ...grpc.CallOption) (*GetFileByFileIDResponse, error) {
+	out := new(GetFileByFileIDResponse)
+	err := c.cc.Invoke(ctx, ItemKeeper_GetFileByFileID_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *itemKeeperClient) Pictures(ctx context.Context, in *PicturesRequest, opts ...grpc.CallOption) (ItemKeeper_PicturesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &ItemKeeper_ServiceDesc.Streams[0], ItemKeeper_Pictures_FullMethodName, opts...)
+func (c *itemKeeperClient) DeleteEntity(ctx context.Context, in *DeleteEntityRequest, opts ...grpc.CallOption) (*DeleteEntityResponse, error) {
+	out := new(DeleteEntityResponse)
+	err := c.cc.Invoke(ctx, ItemKeeper_DeleteEntity_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &itemKeeperPicturesClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type ItemKeeper_PicturesClient interface {
-	Recv() (*PicturesResponse, error)
-	grpc.ClientStream
-}
-
-type itemKeeperPicturesClient struct {
-	grpc.ClientStream
-}
-
-func (x *itemKeeperPicturesClient) Recv() (*PicturesResponse, error) {
-	m := new(PicturesResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
+	return out, nil
 }
 
 // ItemKeeperServer is the server API for ItemKeeper service.
@@ -140,12 +117,12 @@ func (x *itemKeeperPicturesClient) Recv() (*PicturesResponse, error) {
 // for forward compatibility
 type ItemKeeperServer interface {
 	RegUser(context.Context, *RegUserRequest) (*RegUserResponse, error)
-	LogUser(context.Context, *LogUserRequest) (*LogUserResponse, error)
-	AddItem(context.Context, *AddItemRequest) (*AddItemResponse, error)
-	DeleteItem(context.Context, *DeleteItemRequest) (*DeleteItemResponse, error)
-	UpdateItem(context.Context, *UpdateItemRequest) (*UpdateItemResponse, error)
-	GetCatalog(context.Context, *GetCatalogRequest) (*GetCatalogResponse, error)
-	Pictures(*PicturesRequest, ItemKeeper_PicturesServer) error
+	AuthUser(context.Context, *AuthUserRequest) (*AuthUserResponse, error)
+	PutItems(context.Context, *PutItemsRequest) (*PutItemsResponse, error)
+	UploadFile(context.Context, *UploadFileRequest) (*UploadFileResponse, error)
+	UpdateByLastUpdate(context.Context, *UpdateByLastUpdateRequest) (*UpdateByLastUpdateResponse, error)
+	GetFileByFileID(context.Context, *GetFileByFileIDRequest) (*GetFileByFileIDResponse, error)
+	DeleteEntity(context.Context, *DeleteEntityRequest) (*DeleteEntityResponse, error)
 	mustEmbedUnimplementedItemKeeperServer()
 }
 
@@ -156,23 +133,23 @@ type UnimplementedItemKeeperServer struct {
 func (UnimplementedItemKeeperServer) RegUser(context.Context, *RegUserRequest) (*RegUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegUser not implemented")
 }
-func (UnimplementedItemKeeperServer) LogUser(context.Context, *LogUserRequest) (*LogUserResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method LogUser not implemented")
+func (UnimplementedItemKeeperServer) AuthUser(context.Context, *AuthUserRequest) (*AuthUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthUser not implemented")
 }
-func (UnimplementedItemKeeperServer) AddItem(context.Context, *AddItemRequest) (*AddItemResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AddItem not implemented")
+func (UnimplementedItemKeeperServer) PutItems(context.Context, *PutItemsRequest) (*PutItemsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutItems not implemented")
 }
-func (UnimplementedItemKeeperServer) DeleteItem(context.Context, *DeleteItemRequest) (*DeleteItemResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteItem not implemented")
+func (UnimplementedItemKeeperServer) UploadFile(context.Context, *UploadFileRequest) (*UploadFileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UploadFile not implemented")
 }
-func (UnimplementedItemKeeperServer) UpdateItem(context.Context, *UpdateItemRequest) (*UpdateItemResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateItem not implemented")
+func (UnimplementedItemKeeperServer) UpdateByLastUpdate(context.Context, *UpdateByLastUpdateRequest) (*UpdateByLastUpdateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateByLastUpdate not implemented")
 }
-func (UnimplementedItemKeeperServer) GetCatalog(context.Context, *GetCatalogRequest) (*GetCatalogResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetCatalog not implemented")
+func (UnimplementedItemKeeperServer) GetFileByFileID(context.Context, *GetFileByFileIDRequest) (*GetFileByFileIDResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetFileByFileID not implemented")
 }
-func (UnimplementedItemKeeperServer) Pictures(*PicturesRequest, ItemKeeper_PicturesServer) error {
-	return status.Errorf(codes.Unimplemented, "method Pictures not implemented")
+func (UnimplementedItemKeeperServer) DeleteEntity(context.Context, *DeleteEntityRequest) (*DeleteEntityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteEntity not implemented")
 }
 func (UnimplementedItemKeeperServer) mustEmbedUnimplementedItemKeeperServer() {}
 
@@ -205,115 +182,112 @@ func _ItemKeeper_RegUser_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ItemKeeper_LogUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LogUserRequest)
+func _ItemKeeper_AuthUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthUserRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ItemKeeperServer).LogUser(ctx, in)
+		return srv.(ItemKeeperServer).AuthUser(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ItemKeeper_LogUser_FullMethodName,
+		FullMethod: ItemKeeper_AuthUser_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ItemKeeperServer).LogUser(ctx, req.(*LogUserRequest))
+		return srv.(ItemKeeperServer).AuthUser(ctx, req.(*AuthUserRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ItemKeeper_AddItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AddItemRequest)
+func _ItemKeeper_PutItems_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PutItemsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ItemKeeperServer).AddItem(ctx, in)
+		return srv.(ItemKeeperServer).PutItems(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ItemKeeper_AddItem_FullMethodName,
+		FullMethod: ItemKeeper_PutItems_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ItemKeeperServer).AddItem(ctx, req.(*AddItemRequest))
+		return srv.(ItemKeeperServer).PutItems(ctx, req.(*PutItemsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ItemKeeper_DeleteItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteItemRequest)
+func _ItemKeeper_UploadFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UploadFileRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ItemKeeperServer).DeleteItem(ctx, in)
+		return srv.(ItemKeeperServer).UploadFile(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ItemKeeper_DeleteItem_FullMethodName,
+		FullMethod: ItemKeeper_UploadFile_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ItemKeeperServer).DeleteItem(ctx, req.(*DeleteItemRequest))
+		return srv.(ItemKeeperServer).UploadFile(ctx, req.(*UploadFileRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ItemKeeper_UpdateItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateItemRequest)
+func _ItemKeeper_UpdateByLastUpdate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateByLastUpdateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ItemKeeperServer).UpdateItem(ctx, in)
+		return srv.(ItemKeeperServer).UpdateByLastUpdate(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ItemKeeper_UpdateItem_FullMethodName,
+		FullMethod: ItemKeeper_UpdateByLastUpdate_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ItemKeeperServer).UpdateItem(ctx, req.(*UpdateItemRequest))
+		return srv.(ItemKeeperServer).UpdateByLastUpdate(ctx, req.(*UpdateByLastUpdateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ItemKeeper_GetCatalog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetCatalogRequest)
+func _ItemKeeper_GetFileByFileID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFileByFileIDRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ItemKeeperServer).GetCatalog(ctx, in)
+		return srv.(ItemKeeperServer).GetFileByFileID(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ItemKeeper_GetCatalog_FullMethodName,
+		FullMethod: ItemKeeper_GetFileByFileID_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ItemKeeperServer).GetCatalog(ctx, req.(*GetCatalogRequest))
+		return srv.(ItemKeeperServer).GetFileByFileID(ctx, req.(*GetFileByFileIDRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ItemKeeper_Pictures_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(PicturesRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+func _ItemKeeper_DeleteEntity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteEntityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
 	}
-	return srv.(ItemKeeperServer).Pictures(m, &itemKeeperPicturesServer{stream})
-}
-
-type ItemKeeper_PicturesServer interface {
-	Send(*PicturesResponse) error
-	grpc.ServerStream
-}
-
-type itemKeeperPicturesServer struct {
-	grpc.ServerStream
-}
-
-func (x *itemKeeperPicturesServer) Send(m *PicturesResponse) error {
-	return x.ServerStream.SendMsg(m)
+	if interceptor == nil {
+		return srv.(ItemKeeperServer).DeleteEntity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ItemKeeper_DeleteEntity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ItemKeeperServer).DeleteEntity(ctx, req.(*DeleteEntityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 // ItemKeeper_ServiceDesc is the grpc.ServiceDesc for ItemKeeper service.
@@ -328,32 +302,30 @@ var ItemKeeper_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ItemKeeper_RegUser_Handler,
 		},
 		{
-			MethodName: "LogUser",
-			Handler:    _ItemKeeper_LogUser_Handler,
+			MethodName: "AuthUser",
+			Handler:    _ItemKeeper_AuthUser_Handler,
 		},
 		{
-			MethodName: "AddItem",
-			Handler:    _ItemKeeper_AddItem_Handler,
+			MethodName: "PutItems",
+			Handler:    _ItemKeeper_PutItems_Handler,
 		},
 		{
-			MethodName: "DeleteItem",
-			Handler:    _ItemKeeper_DeleteItem_Handler,
+			MethodName: "UploadFile",
+			Handler:    _ItemKeeper_UploadFile_Handler,
 		},
 		{
-			MethodName: "UpdateItem",
-			Handler:    _ItemKeeper_UpdateItem_Handler,
+			MethodName: "UpdateByLastUpdate",
+			Handler:    _ItemKeeper_UpdateByLastUpdate_Handler,
 		},
 		{
-			MethodName: "GetCatalog",
-			Handler:    _ItemKeeper_GetCatalog_Handler,
+			MethodName: "GetFileByFileID",
+			Handler:    _ItemKeeper_GetFileByFileID_Handler,
+		},
+		{
+			MethodName: "DeleteEntity",
+			Handler:    _ItemKeeper_DeleteEntity_Handler,
 		},
 	},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "Pictures",
-			Handler:       _ItemKeeper_Pictures_Handler,
-			ServerStreams: true,
-		},
-	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "internal/server/proto/keeper.proto",
 }

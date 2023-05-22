@@ -4,98 +4,88 @@ package item_keeper;
 
 option go_package = "item_keeper/internal/server/proto";
 
-message Parameter {
-    string name = 1;
-    string value = 2;
+message Item {
+	string itemid = 1;
+	string userid = 2;
+	string body = 3;
+	repeated string filesid = 4;
 }
 
-message Image {
-    string itemid = 1;
-    string title = 2;
-    bytes body = 3;
-}
-
-message Uitem {
-    string id = 1;
-    string name = 2;
-    repeated string tags = 3;
-    repeated Parameter params = 4;
-    repeated Image images = 5;
-    string userid = 6;
-    int64 lastupdate = 7;
+message File {
+	string itemid = 1;
+	string userid = 2;
+	string fileid = 3;
+    bytes body = 4;
+	bytes hash = 5;
 }
 
 message RegUserRequest {
     string login = 1;
-    string pass = 2;
+	string password = 2;
 }
-
 message RegUserResponse {
-    string userid = 1;
+	string userid = 1;
+	int64 lastupdate = 2;
 }
 
-message LogUserRequest {
+message AuthUserRequest {
     string login = 1;
-    string pass = 2;
+	string password = 2;
+}
+message AuthUserResponse {
+	string userid = 1;
 }
 
-message LogUserResponse {
-    string userid = 1;
+message PutItemsRequest {
+    Item item = 1;
+}
+message PutItemsResponse {
+    Item item = 1;
 }
 
-message AddItemRequest {
-    Uitem uitem = 1;
-}
+message UploadFileRequest {
+	File file = 1;
+ }
+ message UploadFileResponse {
+	string fileid = 1;  
+	string userid = 2;
+    string itemid = 3;
+ }
 
-message AddItemResponse {
-    Uitem uitem = 1;
-    int64 oldLastUpdate = 2;
-}
+ message UpdateByLastUpdateRequest {
+	string userid = 1;
+    int64 lastupdate = 2;
+ }
+ message UpdateByLastUpdateResponse {
+	int64 lastupdate = 1;
+    repeated Item item = 2;
+ }
 
-message UpdateItemRequest {
-    Uitem uitem = 1;
-}
+ message GetFileByFileIDRequest {
+	string userid = 1;
+    string fileid = 2;
+ }
+ message GetFileByFileIDResponse {
+File file = 1;
+ }
 
-message UpdateItemResponse {
-    Uitem uitem = 1;
-    int64 oldLastUpdate = 2;
+ message DeleteEntityRequest {
+	repeated string userid = 1;
+	repeated string itemid = 2;
+	repeated string fileid = 3; 
 }
+ message DeleteEntityResponse {
+	repeated string userid = 1;
+	repeated string itemid = 2;
+	repeated string fileid = 3; 
+ }
 
-message DeleteItemRequest {
-    string userid = 1;
-    string itemid = 2;
-}
-
-message DeleteItemResponse {
-    int64 oldLastUpdate = 1;
-    int64 lastUpdate = 2;
-}
-
-message GetCatalogRequest {
-    string userid = 1;
-    int64 lastUpdate = 2;
-}
-
-message GetCatalogResponse {
-    repeated Uitem uitem = 1;
-    int64 lastUpdate = 2;
-}
-
-message PicturesRequest {
-    string userid = 1;
-    string itemid = 2;
-}
-
-message PicturesResponse {
-    bytes Image = 1;
-}
-
-service ItemKeeper {
-  rpc RegUser(RegUserRequest) returns (RegUserResponse);
-  rpc LogUser(LogUserRequest) returns (LogUserResponse);
-  rpc AddItem(AddItemRequest) returns (AddItemResponse);
-  rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
-  rpc UpdateItem(UpdateItemRequest) returns (UpdateItemResponse);
-  rpc GetCatalog(GetCatalogRequest) returns (GetCatalogResponse);
-  rpc Pictures(PicturesRequest) returns (stream PicturesResponse);
-}
+ service ItemKeeper {
+    rpc RegUser(RegUserRequest) returns (RegUserResponse);
+    rpc AuthUser(AuthUserRequest) returns (AuthUserResponse);
+    rpc PutItems(PutItemsRequest) returns (PutItemsResponse);
+    rpc UploadFile(UploadFileRequest) returns (UploadFileResponse);
+    rpc UpdateByLastUpdate(UpdateByLastUpdateRequest) returns (UpdateByLastUpdateResponse);
+    rpc GetFileByFileID(GetFileByFileIDRequest) returns (GetFileByFileIDResponse);
+    rpc DeleteEntity(DeleteEntityRequest) returns (DeleteEntityResponse);
+  }

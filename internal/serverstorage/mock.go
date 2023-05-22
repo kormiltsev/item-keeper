@@ -2,6 +2,7 @@ package serverstorage
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
@@ -33,8 +34,6 @@ var Files = map[string]*File{} // key = FileID
 
 // log of changes
 var listOfChanges = []onechange{}
-
-var storageaddress = "./data/serverstorage"
 
 var errFileIDExists = errors.New("file id exists")
 
@@ -107,12 +106,13 @@ func (mock *ToMock) createUserID() {
 func (mock *ToMock) PutItems() error {
 	// error if empty
 	if len(mock.Data.List) == 0 {
-		return fmt.Errorf("empty request PutItem")
+		return ErrEmptyRequest
 	}
+
 	// if items more than 1
 	for i, item := range mock.Data.List {
 		// empty ItemID means add new item
-		if item.ItemID == "" {
+		if mock.Data.List[i].ItemID == "" {
 			sum := sha256.Sum256([]byte(item.UserID + strconv.FormatInt(time.Now().UnixNano(), 16)))
 			mock.Data.List[i].ItemID = hex.EncodeToString(sum[:])
 		}
@@ -123,6 +123,15 @@ func (mock *ToMock) PutItems() error {
 	defer mu.Unlock()
 
 	for _, item := range mock.Data.List {
+
+		// keep old files ids if exists
+		if _, ok := Items[item.ItemID]; ok {
+			olditemFiles := Items[item.ItemID].FilesID
+			item.FilesID = make([]string, len(olditemFiles))
+			copy(item.FilesID, olditemFiles)
+		}
+
+		// save to catalog
 		Items[item.ItemID] = &item
 		logToListOfChanges(item.UserID, item.ItemID)
 	}
@@ -139,8 +148,6 @@ func logToListOfChanges(userid, itemid string) {
 		itemid:  itemid,
 	}
 	listOfChanges = append(listOfChanges, newlog)
-
-	log.Println("listOfChanges", listOfChanges)
 }
 
 // UploadFile accepts file, save it in storage and
@@ -183,6 +190,9 @@ func (mock *ToMock) UploadFile() error {
 
 	// register file to Files and Items
 	err = addFileAddressToItems(&mock.Data.File)
+
+	// logg changes
+	logToListOfChanges(mock.Data.File.UserID, mock.Data.File.ItemID)
 	return err
 }
 
@@ -225,26 +235,30 @@ func (mock *ToMock) UpdateByLastUpdate() error {
 	mock.Data.List = mock.Data.List[:0]
 
 	// check last update date
-	listOfItems := returnItemIDChanged(mock.Data.User.UserID, mock.Data.User.LastUpdate)
+	listOfItems, lu := returnItemIDChanged(mock.Data.User.UserID, mock.Data.User.LastUpdate)
 	if len(listOfItems) == 0 {
 		return nil
 	}
-
+	mock.Data.User.LastUpdate = lu
 	mock.Data.List = returnItemsByIDs(listOfItems...)
 	return nil
 }
 
-func returnItemIDChanged(userid string, lastupdate int64) []string {
+func returnItemIDChanged(userid string, lastupdate int64) ([]string, int64) {
 	mu.Lock()
 	defer mu.Unlock()
 
+	var luanswer int64
 	answer := make([]string, 0)
 	for i := len(listOfChanges) - 1; i >= 0; i-- {
 		if listOfChanges[i].userid == userid && listOfChanges[i].updated > lastupdate {
 			answer = append(answer, listOfChanges[i].itemid)
+			if listOfChanges[i].updated > luanswer {
+				luanswer = listOfChanges[i].updated
+			}
 		}
 	}
-	return answer
+	return answer, luanswer
 }
 
 func returnItemsByIDs(itemsids ...string) []Item {
@@ -313,4 +327,75 @@ func readFile(fileaddress string) ([]byte, error) {
 	_, err = bufr.Read(bytes)
 
 	return bytes, err
+}
+
+func (mock *ToMock) DeleteItems() error {
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	// delete items
+	if len(mock.Data.List) == 0 {
+		return ErrEmptyRequest
+	}
+
+	for i, itemtodelete := range mock.Data.List {
+		if itemtodelete.ItemID == "" {
+			continue
+		}
+
+		olditem, ok := Items[itemtodelete.ItemID]
+		if ok {
+
+			// file deregistration
+			for _, fileid := range olditem.FilesID {
+				delete(Files, fileid)
+			}
+
+			// delete item folder
+			err := deleteFolderByItemID(olditem.UserID, itemtodelete.ItemID)
+			if err != nil {
+				log.Println("folder deletion error:", err)
+			}
+
+			// delete item in mapa
+			delete(Items, itemtodelete.ItemID)
+		}
+		// log changes
+		logToListOfChanges(mock.Data.File.UserID, mock.Data.File.ItemID)
+		mock.Data.List[i] = Item{}
+	}
+
+	return nil
+}
+
+// func deregisterAndDeleteFileByID(filesidtodelete string) error {
+// 	// deregister
+// 	file, ok := Files[filesidtodelete]
+// 	if ok {
+// 		delete(Files, filesidtodelete)
+// 	} else {
+// 		return fmt.Errorf("file not register in Files")
+// 	}
+
+// 	// remove from storage
+// 	return deleteFolderByItemID(file.UserID, file.ItemID)
+// }
+
+func (mock *ToMock) DeleteFile() error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	file, ok := Files[mock.Data.File.FileID]
+	if !ok {
+		return ErrItemNotFound
+	}
+	return deleteFileByFileID(file.UserID, file.ItemID, file.FileID)
+}
+
+func (mock *ToMock) Connect(ctx context.Context) error {
+	return nil
+}
+
+func (mock *ToMock) Disconnect() {
 }

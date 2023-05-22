@@ -10,6 +10,8 @@ import (
 
 var localstorageaddress = "./data/ClientLocalStorage"
 
+var maxFileSize int64 = 5242880
+
 type List struct {
 	LastUpdate int64
 	UserID     string
@@ -29,10 +31,12 @@ var Catalog = List{
 }
 
 type Operator struct {
-	UserID string
-	Mapa   *List
-	Search map[string][]string
-	Answer map[string]*Item
+	UserID          string
+	Mapa            *List
+	LastUpdate      int64
+	Search          map[string][]string
+	Answer          map[string]*Item
+	AnswerAddresses map[string][]string
 }
 
 var ErrEmptyRequest = fmt.Errorf("empty request")
@@ -54,7 +58,7 @@ func NewUser(userid string, lastUpdate int64) {
 	Catalog.Files = map[string]*File{} // need to delete files
 	Catalog.parameters = map[string][]string{}
 
-	log.Println(Catalog)
+	// log.Println(Catalog)
 }
 
 func NewItem(userid string) *Item {
@@ -71,16 +75,19 @@ func ReturnOperator(userid string) (*Operator, error) {
 		return nil, fmt.Errorf("user not found")
 	}
 	return &Operator{
-		UserID: userid,
-		Mapa:   &Catalog,
-		Search: map[string][]string{},
-		Answer: map[string]*Item{},
+		UserID:          userid,
+		Mapa:            &Catalog,
+		Search:          map[string][]string{},
+		Answer:          map[string]*Item{},
+		AnswerAddresses: map[string][]string{},
 	}, nil
 }
 
 func (op *Operator) PutItems(items ...*Item) error {
 	op.Mapa.mu.Lock()
 	defer op.Mapa.mu.Unlock()
+
+	Catalog.LastUpdate = op.LastUpdate
 
 	for _, item := range items {
 		// add item to catalog
@@ -113,7 +120,6 @@ func (op *Operator) FindItemByParameter() error {
 			if _, ok := op.Answer[itemid]; ok {
 				continue
 			}
-
 			// search pKeysearch in item's Parameters
 			for _, par := range op.Mapa.Items[itemid].Parameters {
 
@@ -123,12 +129,29 @@ func (op *Operator) FindItemByParameter() error {
 					// find!
 					if strings.Contains(par.Value, valsearche) {
 						op.Answer[itemid] = op.Mapa.Items[itemid]
+						op.AnswerAddresses[itemid] = op.addFilesAddresses(itemid)
 					}
 				}
 			}
 		}
 	}
 	return nil
+}
+
+func (op *Operator) addFilesAddresses(itemid string) []string {
+	answer := make([]string, 0)
+	item := op.Mapa.Items[itemid]
+	for _, flid := range item.FileIDs {
+
+		file, ok := op.Mapa.Files[flid]
+		if !ok {
+			log.Println("can't find file in Files local by id (unregistered?):", flid)
+			continue
+		}
+
+		answer = append(answer, file.Address)
+	}
+	return answer
 }
 
 func ReturnIDs() []string {
@@ -138,4 +161,35 @@ func ReturnIDs() []string {
 		answer[i] = k
 	}
 	return answer
+}
+
+func (op *Operator) DeleteItemByID(itemids []string) error {
+	if len(itemids) == 0 {
+		return fmt.Errorf("empty request")
+	}
+
+	op.Mapa.mu.Lock()
+	defer op.Mapa.mu.Unlock()
+
+	for _, itemid := range itemids {
+		item, ok := op.Mapa.Items[itemid]
+		if !ok {
+			continue
+		}
+
+		// delete folder
+		err := deleteFolderByItemID(op.Mapa.UserID, itemid)
+		if err != nil {
+			log.Println("can't delete local folder for item:", itemid)
+		}
+
+		// unregister files
+		for _, fileid := range item.FileIDs {
+			delete(op.Mapa.Files, fileid)
+		}
+
+		// unregister item
+		delete(op.Mapa.Items, itemid)
+	}
+	return nil
 }

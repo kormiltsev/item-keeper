@@ -19,4 +19,5 @@ type File struct {
 	ItemID  string
 	Address string // for storage
 	Body    []byte // not for store
+	Hash    string // not for store
 }

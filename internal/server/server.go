@@ -8,55 +8,27 @@ import (
 
 	configs "github.com/kormiltsev/item-keeper/internal/configs"
 	pb "github.com/kormiltsev/item-keeper/internal/server/proto"
-	storage "github.com/kormiltsev/item-keeper/internal/storage"
+	serverstorage "github.com/kormiltsev/item-keeper/internal/serverstorage"
 	"google.golang.org/grpc"
 )
 
+// StartServer connect to DB
 func StartServer(ctx context.Context, close chan struct{}) {
 
 	con := configs.UploadConfigs()
 	log.Println("configs uploaded:", con)
 
-	uitem := storage.NewItem()
-	uitem.DB = storage.NewToStorage(uitem)
-	err := uitem.DB.Connect(ctx)
+	// prepare to server
+	tostor := serverstorage.NewToStorage()
+	tostor.DB = serverstorage.NewStorager(tostor)
+
+	err := tostor.DB.Connect(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer uitem.DB.Disconnect()
+	defer tostor.DB.Disconnect()
 
-	// short test
-	mockDB(ctx, uitem)
-	// ==========
-
-	// test file storage available
-	err = storage.FileStoragePing(configs.ServiceConfig.FileServerAddress)
-	if err != nil {
-		log.Println("file storage fail:", err)
-	}
-	// ===========================
 	<-close
-}
-
-func mockDB(ctx context.Context, db *storage.Uitem) {
-	uitem := storage.NewItem()
-	uitem.User.Login = "correct"
-	uitem.User.Pass = "wrong"
-	uitem.DB = storage.NewToStorage(uitem)
-	uitem.DB.LoginUser(ctx)
-	log.Println(uitem.User.Error)
-
-	uitem.User.Login = "wrong"
-	uitem.User.Pass = "any"
-	uitem.DB = storage.NewToStorage(uitem)
-	uitem.DB.LoginUser(ctx)
-	log.Println(uitem.User.Error)
-
-	uitem.User.Login = "correct"
-	uitem.User.Pass = "correct"
-	uitem.DB = storage.NewToStorage(uitem)
-	uitem.DB.LoginUser(ctx)
-	log.Println("error database test =", uitem.User.Error)
 }
 
 // StartServerGRPC run grpc server

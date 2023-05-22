@@ -1,199 +1,127 @@
 package app
 
 import (
-	"crypto/sha1"
+	"bytes"
+	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log"
-	"os"
 	"strconv"
-
-	serverstorage "github.com/kormiltsev/item-keeper/internal/serverstorage"
+	"time"
 
 	appstorage "github.com/kormiltsev/item-keeper/internal/app/appstorage"
+	clientconnector "github.com/kormiltsev/item-keeper/internal/client"
+	pb "github.com/kormiltsev/item-keeper/internal/server/proto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-var (
-	currentuser string = "AppUser"
-	// currentuserpassword    string
-	currentuserencryptokey string = "manualLocalKey"
-	currentlastupdate      int64  = 0
-)
+// func presetItem() *appstorage.Item {
+// 	return &appstorage.Item{
+// 		UserID:        currentuser,
+// 		Parameters:    []appstorage.Parameter{{Name: "Parameter1", Value: "val1"}, {Name: "Parameter2", Value: "val2"}},
+// 		UploadAddress: []string{"./data/sourceClient/test.txt", "./data/sourceClient/Jocker.jpeg"},
+// 	}
+// }
 
-func RegUser(login, password string) error {
-	// create truct from storage
-	tostorage := serverstorage.NewToStorage()
-
-	// encrypt login and password here
-	login, password = encodeLoginPass(login, password)
-	currentuser = login
-	// currentuserpassword = password
-
-	// add user creds to struct
-	user := serverstorage.User{
-		Login:    login,
-		Password: password,
-	}
-	tostorage.User = &user
-
-	// select DB interface
-	tostorage.DB = serverstorage.NewStorager(tostorage)
-	if tostorage.Error != nil {
-		return tostorage.Error
-	}
-
-	// reg user on server
-	err := tostorage.DB.RegUser()
-	if err != nil {
-		log.Println("reg user error from server:", err)
-	}
-
-	// save local
-	appstorage.NewUser(tostorage.User.UserID, 0)
-
-	// save current user id
-	currentuser = tostorage.User.UserID
-	currentlastupdate = tostorage.User.LastUpdate
-
-	return nil
+func NewAppItem() *appstorage.Item {
+	return &appstorage.Item{}
 }
 
-func encodeLoginPass(login, password string) (string, string) {
-	h := sha1.New()
-	h.Write([]byte(login))
-	login = hex.EncodeToString(h.Sum(nil))
+func AddNewItem(ctx context.Context, appitem *appstorage.Item) error {
+	// appitem := presetItem()
+	appitem.UserID = currentuser
 
-	sum := sha256.Sum256([]byte(login + password))
-	password = hex.EncodeToString(sum[:])
+	// set context with time limit
+	ctxto, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
+	defer cancel()
 
-	return login, password
-}
-
-func AuthUser(login, password string) error {
-	// create truct from storage
-	tostorage := serverstorage.NewToStorage()
-
-	// encrypt login and password here
-	login, password = encodeLoginPass(login, password)
-	currentuser = login
-	// currentuserpassword = password
-
-	// add user creds to struct
-	user := serverstorage.User{
-		Login:    login,
-		Password: password,
-	}
-	tostorage.User = &user
-
-	// select DB interface
-	tostorage.DB = serverstorage.NewStorager(tostorage)
-	if tostorage.Error != nil {
-		return tostorage.Error
-	}
-
-	// reg user on server
-	err := tostorage.DB.AuthUser()
+	// encode item data
+	body, err := appitem.Encode(currentuserencryptokey)
 	if err != nil {
-		log.Println("auth user error from server:", err)
+		log.Println("error item encoding:", err)
+		return err
 	}
 
-	// save local
-	// using NewUser() due to oneClient = oneUser rule (for now)
-	appstorage.NewUser(tostorage.User.UserID, 0)
-
-	// save current user id
-	currentuser = tostorage.User.UserID
-	currentlastupdate = 0
-
-	// and go get catalog from server
-	UpdateDataFromServer() // used currentuser and currentlastupdate
-
-	return nil
-}
-
-func presetItem() *appstorage.Item {
-	return &appstorage.Item{
-		UserID:        currentuser,
-		Parameters:    []appstorage.Parameter{{Name: "Parameter1", Value: "val1"}, {Name: "Parameter2", Value: "val2"}},
-		UploadAddress: []string{"./data/sourceClient/test.txt", "./data/sourceClient/Jocker.jpeg"},
+	// buil request
+	req := pb.PutItemsRequest{
+		Item: &pb.Item{
+			Itemid: appitem.ItemID,
+			Userid: appitem.UserID,
+			Body:   body,
+		},
 	}
-}
 
-func AddNewItem() {
-	var err error
-	appitem := presetItem()
+	// gRPC
+	cc := clientconnector.NewClientConnector(ctxto)
+	cl := *cc.Client
 
-	// encode data
-	serveritem := serverstorage.NewItem()
-	serveritem.UserID = appitem.UserID
-	serveritem.Body, err = appitem.Encode(currentuserencryptokey)
+	// run request
+	response, err := cl.PutItems(cc.Ctx, &req)
 	if err != nil {
-		log.Println("error encrypt item:", err)
-		return
-	}
-
-	// prepare to server
-	tostor := serverstorage.NewToStorage()
-	tostor.List = append(tostor.List, *serveritem)
-	tostor.DB = serverstorage.NewStorager(tostor)
-
-	// to server
-	err = tostor.DB.PutItems()
-	if err != nil {
-		log.Println("put item to server err:", err)
-		return
+		if e, ok := status.FromError(err); ok {
+			if e.Code() == codes.InvalidArgument {
+				return fmt.Errorf(`empty request:%v`, e.Message())
+			} else {
+				return fmt.Errorf(`PutItem:%v:%v`, e.Code(), e.Message())
+			}
+		}
+		return fmt.Errorf(`PutItem error:%v`, err)
 	}
 
 	// if empty response
-	if len(tostor.List) == 0 || tostor.List[0].ItemID == "" {
+	if response.Item.Itemid == "" {
 		log.Println("FAIL: PutItems() empty response from server")
-		return
+		return fmt.Errorf(`server internal error`)
 	}
 
 	// save new itemID into local item
-	appitem.ItemID = tostor.List[0].ItemID
+	appitem.ItemID = response.Item.Itemid
 
+	// save item to Catalog, request interface
+	operator, erro := appstorage.ReturnOperator(appitem.UserID)
+	if erro != nil {
+		log.Println(erro)
+		return err
+	}
+
+	// save local
+	err = operator.PutItems(appitem)
+	if err != nil {
+		log.Println("can't save item local:", err)
+		return err
+	}
+
+	// run upload file in goroutine
+	// REDO to channel and worker
+	uploadFileFromItemToServer(appitem)
+
+	return nil
+}
+
+func uploadFileFromItemToServer(appitem *appstorage.Item) {
+
+	log.Println("starts file upload: ", appitem.UploadAddress)
+
+	ctx := context.Background()
 	// prepare and send files after NewItemID was created by server
 	for i, fileaddress := range appitem.UploadAddress {
 		file := appstorage.NewFileStruct()
 		file.FileID = strconv.Itoa(i) // temporary id to upload
-		file.ItemID = tostor.List[0].ItemID
-		file.UserID = tostor.List[0].UserID
+		file.ItemID = appitem.ItemID
+		file.UserID = appitem.UserID
 		file.Address = fileaddress
 
-		// read and encode file
-		err := file.PrepareFile(currentuserencryptokey)
+		err := encodeAndUploadFileToServer(ctx, file)
 		if err != nil {
-			log.Println("can't prepare file", fileaddress, "error:", err)
-			continue
-		}
-
-		// to server storage
-		tostorfile := serverstorage.NewFile()
-		tostorfile.FileID = file.FileID
-		tostorfile.ItemID = file.ItemID
-		tostorfile.UserID = file.UserID
-		tostorfile.Body = file.Body
-
-		// create tostor
-		tostor := serverstorage.NewToStorage()
-		tostor.File = *tostorfile
-		tostor.DB = serverstorage.NewStorager(tostor)
-
-		// upload file to server
-		err = tostor.DB.UploadFile()
-		if err != nil {
-			log.Println("can't upload file to server:", tostor.File.Address, "error:", err)
-			// retry delivery
+			// send error to error channel
 			//
-			// ==============
+			// ===========================
+
+			log.Printf("File %s not uploaded:%v", fileaddress, err)
 		}
 
-		// parse result (reuse local body)
-		file.FileID = tostor.File.FileID
-
-		// save file local and register in Catalog.Files
+		// save original file local and register in Catalog.Files
 		err = file.SaveFileLocal(currentuserencryptokey)
 		if err != nil {
 			log.Println("Can't save file local:", err)
@@ -203,85 +131,111 @@ func AddNewItem() {
 		// copy file address into new appitem
 		appitem.FileIDs = append(appitem.FileIDs, file.FileID)
 	}
-
-	// save item to Catalog, request interface
-	operator, erro := appstorage.ReturnOperator(appitem.UserID)
-	if erro != nil {
-		log.Println(erro)
-	}
-
-	// save local
-	err = operator.PutItems(appitem)
-	if err != nil {
-		log.Println("can't save item local:", err)
-	}
 }
 
-func SearchItemByParameters() {
-
-	searchlist := map[string][]string{
-		"Parameter1": {"val", "foo"},
-		"Parameter2": {"2", "boo"},
-	}
-
-	// prepare to server
-	oper, err := appstorage.ReturnOperator(currentuser)
+func encodeAndUploadFileToServer(ctx context.Context, file *appstorage.File) error {
+	// read and encode file
+	err := file.PrepareFile(currentuserencryptokey)
 	if err != nil {
-		log.Println("user not found in local memory. RegUser before SearchItemByParameters()")
-		return
+		log.Println("can't prepare file", file.Address, "error:", err)
+		return fmt.Errorf("file encoding error:%s", file.Address)
 	}
 
-	for key, val := range searchlist {
-		if _, ok := oper.Search[key]; !ok {
-			oper.Search[key] = make([]string, 0)
+	return uploadEncryptedFileToServer(ctx, file)
+}
+
+func uploadEncryptedFileToServer(ctx context.Context, file *appstorage.File) error {
+
+	hash := sha256.Sum256(file.Body)
+
+	// grpc
+	// buil request
+	req := pb.UploadFileRequest{
+		File: &pb.File{
+			Itemid: file.ItemID,
+			Userid: file.UserID,
+			Fileid: file.FileID,
+			Body:   file.Body,
+			Hash:   hash[:],
+		},
+	}
+
+	// set tokens
+	cc := clientconnector.NewClientConnector(ctx)
+	cl := *cc.Client
+
+	// run request
+	response, err := cl.UploadFile(cc.Ctx, &req)
+	if err != nil {
+		if e, ok := status.FromError(err); ok {
+			if e.Code() == codes.DataLoss {
+
+				// retry sending 3 times
+				again := 0
+				for err != nil || again < 3 {
+					response, err = cl.UploadFile(cc.Ctx, &req)
+					again++
+				}
+				if err != nil {
+					return fmt.Errorf(`recieving data lost: %v`, e.Message())
+				}
+			} else {
+				return fmt.Errorf(`UploadFile error:%v:%v`, e.Code(), e.Message())
+			}
 		}
-		oper.Search[key] = append(oper.Search[key], val...)
+		if err != nil {
+			return fmt.Errorf(`UploadFile error:%v`, err)
+		}
 	}
 
-	err = oper.FindItemByParameter()
-	if err != nil {
-		log.Printf("FAIL search error: %v, looking for:%v", err, searchlist)
-	}
-
-	ans := "search results:\n"
-
-	for _, item := range oper.Answer {
-		ans = fmt.Sprintf("%s%v\n", ans, item.Parameters)
-	}
-	log.Println(ans)
+	file.FileID = response.Fileid
+	file.UserID = response.Userid
+	file.ItemID = response.Itemid
+	return nil
 }
 
 // UpdateDataFromServer request lastUpdate from server and save items rfom response local
-func UpdateDataFromServer() {
+func UpdateDataFromServer(ctx context.Context) (bool, error) {
 
-	// prepare to server
-	tostor := serverstorage.NewToStorage()
-	tostor.User.UserID = currentuser
-	tostor.User.LastUpdate = currentlastupdate
-	tostor.DB = serverstorage.NewStorager(tostor)
-
-	// to server
-	err := tostor.DB.UpdateByLastUpdate()
-	if err != nil {
-		log.Println("put item to server err:", err)
-		return
+	// buil request
+	req := pb.UpdateByLastUpdateRequest{
+		Userid:     currentuser,
+		Lastupdate: currentlastupdate,
 	}
 
-	if len(tostor.List) == 0 {
-		log.Println("everything updated")
-		return
+	// gRPC
+	cc := clientconnector.NewClientConnector(ctx)
+	cl := *cc.Client
+
+	// run request
+	response, err := cl.UpdateByLastUpdate(cc.Ctx, &req)
+	if err != nil {
+		return false, fmt.Errorf(`update request error:%v`, err)
+	}
+
+	if len(response.Item) == 0 {
+		if response.Lastupdate > currentlastupdate {
+			log.Println("response empty, but lastupdate date different")
+			return false, fmt.Errorf("last update not equal, but no items resieved")
+		}
+		log.Println("response empty, looks like everithing updated")
+		return true, nil
 	}
 
 	// save item to Catalog, request interface
-	operator, erro := appstorage.ReturnOperator(tostor.User.UserID)
+	operator, erro := appstorage.ReturnOperator(currentuser)
 	if erro != nil {
-		log.Println(erro)
+		return false, fmt.Errorf("can't save local:%v", erro)
 	}
 
-	answer := make([]*appstorage.Item, 0, len(tostor.List))
+	// set last update same as data from server
+	currentlastupdate = response.Lastupdate
+	operator.LastUpdate = response.Lastupdate
+
+	answer := make([]*appstorage.Item, 0, len(response.Item))
 
 	// for every item decode and add file ids into appstorage item
-	for _, itm := range tostor.List {
+	for _, itm := range response.Item {
 
 		// decode to local item struct
 		newitem, err := appstorage.Decode(itm.Body, currentuserencryptokey)
@@ -290,21 +244,20 @@ func UpdateDataFromServer() {
 			continue
 		}
 
+		// add new generated itemid from server
+		newitem.ItemID = itm.Itemid
+
 		// upload file ids into local item
-		newitem.FileIDs = make([]string, 0, len(itm.FilesID))
-		for _, fileid := range itm.FilesID {
+		newitem.FileIDs = make([]string, 0, len(itm.Filesid))
+		for _, fileid := range itm.Filesid {
 			if len(fileid) == 0 {
 				continue
 			}
 			newitem.FileIDs = append(newitem.FileIDs, fileid)
 		}
 
-		log.Println(newitem)
-
 		// making answer slice of items
 		answer = append(answer, newitem)
-
-		log.Println(newitem)
 	}
 
 	// save local
@@ -313,58 +266,158 @@ func UpdateDataFromServer() {
 		log.Println("can't save item local:", err)
 	}
 
+	// download files (run goroutine?)
+	fileIDs := make([]string, 0)
+	for _, item := range answer {
+		fileIDs = append(fileIDs, item.FileIDs...)
+	}
+	go requestFilesByFileID(0, fileIDs)
+
+	return true, nil
 }
 
-// for now returns only 1 file
-func RequestFilesByFileID() {
-	// example random item
-	var itm *appstorage.Item
-	for _, item := range appstorage.Catalog.Items {
-		if len(item.FileIDs) != 0 {
-			itm = item
-			break
+func requestFilesByFileID(tryNumber int, listOfFileids []string) {
+	doneFilesID, nondoneFilesID, err := RequestFilesByFileID(context.Background(), listOfFileids...)
+	if err != nil {
+		log.Printf("%d/%d files downloaded, error: %v", len(doneFilesID), len(listOfFileids), err)
+		if len(nondoneFilesID) != 0 && tryNumber < 3 {
+			time.Sleep(1 * time.Second)
+			requestFilesByFileID(tryNumber+1, nondoneFilesID)
+		}
+	} else {
+		log.Printf("%d/%d files downloaded", len(doneFilesID), len(listOfFileids))
+	}
+}
+
+// RequestFilesByFileID returns files ids dawnloaded successfully and error (if some of them not recieved)
+func RequestFilesByFileID(ctx context.Context, fileids ...string) ([]string, []string, error) {
+	var err error
+	if len(fileids) == 0 {
+		return nil, nil, fmt.Errorf("empty request")
+	}
+
+	readyfiles := make([]string, 0)
+	errorfiles := make([]string, 0)
+	for _, fileid := range fileids {
+
+		err = requestFileByFileID(ctx, fileid)
+		if err == nil {
+			readyfiles = append(readyfiles, fileid)
+		} else {
+			errorfiles = append(errorfiles, fileid)
+			log.Println("file not recieved:", fileid)
 		}
 	}
-	listOfIDs := make([]string, len(itm.FileIDs))
-	copy(listOfIDs, itm.FileIDs)
-	//====================
 
-	// prepare to server
-	file := serverstorage.NewFile()
-	file.FileID = listOfIDs[0]
-	file.UserID = currentuser
+	if len(readyfiles) != len(fileids) {
+		return readyfiles, errorfiles, fmt.Errorf("some of file not recieved")
+	}
 
-	tostor := serverstorage.NewToStorage()
-	tostor.File = *file
+	return readyfiles, nil, nil
+}
 
-	tostor.DB = serverstorage.NewStorager(tostor)
+func requestFileByFileID(ctx context.Context, fileid string) error {
+	// buil request
+	req := pb.GetFileByFileIDRequest{
+		Userid: currentuser,
+		Fileid: fileid,
+	}
 
-	// to server
-	err := tostor.DB.GetFileByFileID()
+	// gRPC
+	cc := clientconnector.NewClientConnector(ctx)
+	cl := *cc.Client
+
+	// run request
+	response, err := cl.GetFileByFileID(cc.Ctx, &req)
 	if err != nil {
-		log.Println("get file from server err:", err)
-		return
+		if e, ok := status.FromError(err); ok {
+			if e.Code() == codes.Internal {
+				return fmt.Errorf(`request file error: %v`, e.Message())
+			}
+		}
+		if err != nil {
+			return fmt.Errorf(`request file error:%v`, err)
+		}
+	}
+
+	if !checkHas(response.File.Body, response.File.Hash) {
+		return fmt.Errorf("response body damaged, file id:%s", req.Fileid)
 	}
 
 	// copy to appstorage tipe
 	appfile := appstorage.NewFileStruct()
-	appfile.FileID = tostor.File.FileID
-	appfile.ItemID = tostor.File.ItemID
-	appfile.UserID = tostor.File.UserID
-	appfile.Body = make([]byte, len(tostor.File.Body))
-	copy(appfile.Body, tostor.File.Body)
+	appfile.FileID = response.File.Fileid
+	appfile.ItemID = response.File.Itemid
+	appfile.UserID = response.File.Userid
+	appfile.Body = make([]byte, len(response.File.Body))
+	copy(appfile.Body, response.File.Body)
 
 	// encode and save file local on client
 	err = appfile.SaveFileLocal(currentuserencryptokey)
 	if err != nil {
 		log.Println("can't save file on client:", err)
 	}
+	return nil
+}
 
-	// to debug only
-	bytes, err := os.ReadFile(appfile.Address)
-	if err != nil {
-		log.Println("DEBUG: can't read file:", appfile.Address)
-	}
-	log.Println("File recieved: ", string(bytes[:20]), "...")
-	//===============
+func checkHas(body []byte, hash []byte) bool {
+	sum := sha256.Sum256(body)
+	return bytes.Equal(sum[:], hash)
+}
+
+func DeleteItems(ctx context.Context, itemids []string) ([]string, error) {
+
+	// var err error
+	// if len(itemids) == 0 {
+	// 	return nil, fmt.Errorf("empty request")
+	// }
+
+	// // buil request
+	// req := pb.DeleteEntityRequest{
+	// 	Itemid: itemids,
+	// }
+
+	// // gRPC
+	// cc := clientconnector.NewClientConnector(ctx)
+	// cl := *cc.Client
+
+	// // run request
+	// response, err := cl.DeleteEntity(cc.Ctx, &req)
+	// if err == nil {
+	// 	// everything ok
+	// 	return nil, nil
+	// }
+
+	// if len(response.Itemid) == 0 {
+	// 	return nil, fmt.Errorf("no error items returnd, error:%v", err)
+	// }
+
+	// // delete local item
+	// var itemidsToDeleteLocal = make([]string, 0)
+	// RESPONSE:
+	// for _, itemid := range itemids {
+	// 	for _, erroritemid := range response.Itemid {
+	// 		if itemid == erroritemid {
+	// 			continue RESPONSE
+	// 		}
+	// 	}
+	// 	itemidsToDeleteLocal = append(itemidsToDeleteLocal, erroritemid)
+
+	// }
+	// // save item to Catalog, request interface
+	// operator, erro := appstorage.ReturnOperator(currentuser)
+	// if erro != nil {
+	// 	return false, fmt.Errorf("can't save local:", erro)
+	// }
+
+	// // delete local files
+	// file := appstorage.NewFileStruct()
+	// file.FileID = strconv.Itoa(i) // temporary id to upload
+	// file.ItemID = appitem.ItemID
+	// file.UserID = appitem.UserID
+	// file.Address = fileaddress
+	// err = appstorage.DeleteFileLocalByID(fileaddress)
+
+	// return response.Itemid, err
+	return nil, nil
 }
