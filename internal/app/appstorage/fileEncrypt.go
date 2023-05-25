@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"io"
 )
@@ -11,13 +12,9 @@ import (
 func FileEncrypt(plaintext []byte, keystring string) ([]byte, error) {
 
 	// Key
-	key := []byte(keystring)
-	for len(key) < 16 {
-		key = append(key, key...)
-	}
+	key := sha256.Sum256([]byte(keystring))
 
-	// Create the AES cipher
-	block, err := aes.NewCipher(key[:16])
+	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return nil, fmt.Errorf("NewCipher error:%v", err)
 	}
@@ -43,12 +40,9 @@ func FileEncrypt(plaintext []byte, keystring string) ([]byte, error) {
 func FileDecrypt(ciphertext []byte, keystring string) ([]byte, error) {
 
 	// Key
-	key := []byte(keystring)
-	for len(key) < 16 {
-		key = append(key, key...)
-	}
+	key := sha256.Sum256([]byte(keystring))
 
-	block, err := aes.NewCipher(key[:16])
+	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return nil, fmt.Errorf("AES error:%v", err)
 	}

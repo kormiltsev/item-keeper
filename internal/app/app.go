@@ -78,25 +78,31 @@ func AddNewItem(ctx context.Context, appitem *appstorage.Item) error {
 	// save new itemID into local item
 	appitem.ItemID = response.Item.Itemid
 
-	// save item to Catalog, request interface
-	operator, erro := appstorage.ReturnOperator(appitem.UserID)
-	if erro != nil {
-		log.Println(erro)
-		return err
-	}
-
-	// save local
-	err = operator.PutItems(appitem)
-	if err != nil {
-		log.Println("can't save item local:", err)
-		return err
+	// update data from server
+	if errup := UpdateDataFromServer(ctx); errup != nil {
+		log.Println("put item: can't update from server:", err)
+		return nil
 	}
 
 	// run upload file in goroutine
-	// REDO to channel and worker
-	uploadFileFromItemToServer(appitem)
+	// REDO to channel and worker ?
+	go uploadFileFromItemToServer(appitem)
 
 	return nil
+
+	// // save item to Catalog, request interface
+	// operator, erro := appstorage.ReturnOperator(appitem.UserID)
+	// if erro != nil {
+	// 	log.Println(erro)
+	// 	return err
+	// }
+
+	// // save local
+	// err = operator.PutItems(appitem)
+	// if err != nil {
+	// 	log.Println("can't save item local:", err)
+	// 	return err
+	// }
 }
 
 func uploadFileFromItemToServer(appitem *appstorage.Item) {
@@ -119,6 +125,11 @@ func uploadFileFromItemToServer(appitem *appstorage.Item) {
 			// ===========================
 
 			log.Printf("File %s not uploaded:%v", fileaddress, err)
+		}
+
+		// check if other user authorized local already? then no need to save file local
+		if file.UserID != currentuser {
+			return
 		}
 
 		// save original file local and register in Catalog.Files
@@ -195,7 +206,7 @@ func uploadEncryptedFileToServer(ctx context.Context, file *appstorage.File) err
 }
 
 // UpdateDataFromServer request lastUpdate from server and save items rfom response local
-func UpdateDataFromServer(ctx context.Context) (bool, error) {
+func UpdateDataFromServer(ctx context.Context) error {
 
 	// buil request
 	req := pb.UpdateByLastUpdateRequest{
@@ -210,22 +221,22 @@ func UpdateDataFromServer(ctx context.Context) (bool, error) {
 	// run request
 	response, err := cl.UpdateByLastUpdate(cc.Ctx, &req)
 	if err != nil {
-		return false, fmt.Errorf(`update request error:%v`, err)
+		return fmt.Errorf(`update request error:%v`, err)
 	}
 
 	if len(response.Item) == 0 {
 		if response.Lastupdate > currentlastupdate {
 			log.Println("response empty, but lastupdate date different")
-			return false, fmt.Errorf("last update not equal, but no items resieved")
+			return fmt.Errorf("last update not equal, but no items resieved")
 		}
 		log.Println("response empty, looks like everithing updated")
-		return true, nil
+		return nil
 	}
 
 	// save item to Catalog, request interface
 	operator, erro := appstorage.ReturnOperator(currentuser)
 	if erro != nil {
-		return false, fmt.Errorf("can't save local:%v", erro)
+		return fmt.Errorf("can't save local:%v", erro)
 	}
 
 	// set last update same as data from server
@@ -237,6 +248,22 @@ func UpdateDataFromServer(ctx context.Context) (bool, error) {
 	// for every item decode and add file ids into appstorage item
 	for _, itm := range response.Item {
 
+		// if item deleted
+		if itm.Deleted {
+			// log.Println("deleted da:", itm.Itemid)
+			// delete item in Catalog, request interface
+			operator, erro := appstorage.ReturnOperator(currentuser)
+			if erro != nil {
+				log.Println("cant delete local, Operator error:", erro)
+				continue
+			}
+
+			if err := operator.DeleteItemByID(itm.Itemid); err != nil {
+				log.Println("error with local delete:", err)
+			}
+			continue
+		}
+
 		// decode to local item struct
 		newitem, err := appstorage.Decode(itm.Body, currentuserencryptokey)
 		if err != nil {
@@ -244,7 +271,7 @@ func UpdateDataFromServer(ctx context.Context) (bool, error) {
 			continue
 		}
 
-		// add new generated itemid from server
+		// add itemid from server
 		newitem.ItemID = itm.Itemid
 
 		// upload file ids into local item
@@ -261,27 +288,36 @@ func UpdateDataFromServer(ctx context.Context) (bool, error) {
 	}
 
 	// save local
+	// log.Println("answer: ", answer)
 	err = operator.PutItems(answer...)
 	if err != nil {
 		log.Println("can't save item local:", err)
 	}
 
-	// download files (run goroutine?)
+	// download files
 	fileIDs := make([]string, 0)
 	for _, item := range answer {
 		fileIDs = append(fileIDs, item.FileIDs...)
 	}
-	go requestFilesByFileID(0, fileIDs)
 
-	return true, nil
+	// download files (run goroutine)
+	if len(fileIDs) != 0 {
+		go requestFilesByFileID(0, fileIDs)
+	}
+
+	return nil
 }
 
 func requestFilesByFileID(tryNumber int, listOfFileids []string) {
 	doneFilesID, nondoneFilesID, err := RequestFilesByFileID(context.Background(), listOfFileids...)
 	if err != nil {
 		log.Printf("%d/%d files downloaded, error: %v", len(doneFilesID), len(listOfFileids), err)
-		if len(nondoneFilesID) != 0 && tryNumber < 3 {
+		if (nondoneFilesID == nil || len(nondoneFilesID) != 0) && tryNumber < 3 {
+
 			time.Sleep(1 * time.Second)
+
+			log.Println("retry download file, attempt #", tryNumber)
+
 			requestFilesByFileID(tryNumber+1, nondoneFilesID)
 		}
 	} else {
@@ -344,6 +380,11 @@ func requestFileByFileID(ctx context.Context, fileid string) error {
 		return fmt.Errorf("response body damaged, file id:%s", req.Fileid)
 	}
 
+	// check if other user authorized local already? then no need to save file local
+	if response.File.Userid != currentuser {
+		return nil
+	}
+
 	// copy to appstorage tipe
 	appfile := appstorage.NewFileStruct()
 	appfile.FileID = response.File.Fileid
@@ -365,59 +406,33 @@ func checkHas(body []byte, hash []byte) bool {
 	return bytes.Equal(sum[:], hash)
 }
 
+// DeleteItems return errored items and error
 func DeleteItems(ctx context.Context, itemids []string) ([]string, error) {
+	// if empty
+	if len(itemids) == 0 {
+		return nil, fmt.Errorf("empty request")
+	}
 
-	// var err error
-	// if len(itemids) == 0 {
-	// 	return nil, fmt.Errorf("empty request")
-	// }
+	// build request
+	req := pb.DeleteEntityRequest{
+		Itemid: itemids,
+	}
 
-	// // buil request
-	// req := pb.DeleteEntityRequest{
-	// 	Itemid: itemids,
-	// }
+	// gRPC
+	cc := clientconnector.NewClientConnector(ctx)
+	cl := *cc.Client
 
-	// // gRPC
-	// cc := clientconnector.NewClientConnector(ctx)
-	// cl := *cc.Client
+	// run request
+	response, err := cl.DeleteEntity(cc.Ctx, &req)
+	if len(response.Itemid) == 0 && err != nil {
+		return nil, fmt.Errorf("no error items returned, but error:%v", err)
+	}
 
-	// // run request
-	// response, err := cl.DeleteEntity(cc.Ctx, &req)
-	// if err == nil {
-	// 	// everything ok
-	// 	return nil, nil
-	// }
+	// upload new status from server
+	// go UpdateDataFromServer(ctx)
+	if err := UpdateDataFromServer(ctx); err != nil {
+		log.Println("deleted. but update from server error:", err)
+	}
 
-	// if len(response.Itemid) == 0 {
-	// 	return nil, fmt.Errorf("no error items returnd, error:%v", err)
-	// }
-
-	// // delete local item
-	// var itemidsToDeleteLocal = make([]string, 0)
-	// RESPONSE:
-	// for _, itemid := range itemids {
-	// 	for _, erroritemid := range response.Itemid {
-	// 		if itemid == erroritemid {
-	// 			continue RESPONSE
-	// 		}
-	// 	}
-	// 	itemidsToDeleteLocal = append(itemidsToDeleteLocal, erroritemid)
-
-	// }
-	// // save item to Catalog, request interface
-	// operator, erro := appstorage.ReturnOperator(currentuser)
-	// if erro != nil {
-	// 	return false, fmt.Errorf("can't save local:", erro)
-	// }
-
-	// // delete local files
-	// file := appstorage.NewFileStruct()
-	// file.FileID = strconv.Itoa(i) // temporary id to upload
-	// file.ItemID = appitem.ItemID
-	// file.UserID = appitem.UserID
-	// file.Address = fileaddress
-	// err = appstorage.DeleteFileLocalByID(fileaddress)
-
-	// return response.Itemid, err
-	return nil, nil
+	return response.Itemid, nil
 }

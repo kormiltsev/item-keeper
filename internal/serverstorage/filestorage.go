@@ -6,17 +6,9 @@ import (
 	"path/filepath"
 )
 
-var storageaddress = "./data/serverstorage"
+var storageaddress = "./data/ServerStorage"
 
-func deleteFolderByUserID(userid string) error {
-	err := os.RemoveAll(userFolderPass(userid))
-	if err != nil {
-		return fmt.Errorf("can't delete folder:%v For userid =%s", err, userid)
-	}
-	return nil
-}
-
-func deleteFolderByItemID(userid, itemid string) error {
+func deleteFilesByItemID(userid, itemid string) error {
 	err := os.RemoveAll(itemFolderPass(userid, itemid))
 	if err != nil {
 		return fmt.Errorf("can't delete folder:%v For itemID =%s", err, itemid)

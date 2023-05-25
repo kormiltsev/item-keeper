@@ -23,9 +23,34 @@ func main() {
 	// defer undo()
 
 	ctx := context.Background()
-	testreqs(ctx)
+	// big preset test
+	// testreqs(ctx)
 
+	// parameters checking
 	// testParameters(ctx)
+
+	// reg/auth and add 1 item
+	if testAuthUser(ctx, "Userman", "passman") != nil {
+		if testRegUser(ctx, "Userman", "passman") != nil {
+			log.Println("FAIL: Reg and Auth unavailable")
+			return
+		}
+	}
+
+	// add preset item
+	if testAddItemOnly(ctx, 1) != nil {
+		log.Println("FAIL: can't add item")
+	}
+	time.Sleep(1 * time.Second)
+
+	// testAuthUser(ctx, "Userman", "passman")
+	// testRegUser(ctx, "Userman2", "passman")
+	// testAuthUser(ctx, "Userman", "passman")
+	// time.Sleep(1 * time.Second)
+	// testAuthAndAddItem(ctx, "Userman", "passman")
+	// time.Sleep(2 * time.Second)
+	// testDeleteItemOnly(ctx, "8910244cb879f0a95fa2df71b602ecbf6465bce61f2c9bcd46db5d63b81d52cf")
+	// time.Sleep(1 * time.Second)
 }
 
 func testreqs(ctx context.Context) {
@@ -62,7 +87,7 @@ func testreqs(ctx context.Context) {
 	search.Mapa["Name"] = []string{"1"}
 	err = search.SearchItemByParameters()
 	if err != nil {
-		log.Println("FAIL search:", err)
+		log.Println("FAIL testreqs search 1:", err)
 		return
 	}
 	if len(search.Answer) == 0 {
@@ -95,11 +120,11 @@ func testreqs(ctx context.Context) {
 	search.Mapa["Manufacture"] = []string{"Mercedes"}
 	err = search.SearchItemByParameters()
 	if err != nil {
-		log.Println("FAIL search:", err)
+		log.Println("FAIL testreqs search 2:", err)
 		return
 	}
 	if len(search.Answer) != 1 {
-		log.Println("ERROR: len(answer) != 1")
+		log.Println("FAIL: testreqs search 2 len(answer) != 1, but len(answer) =", len(search.Answer))
 	}
 
 	log.Println("auth user 1")
@@ -125,6 +150,12 @@ func testreqs(ctx context.Context) {
 		return
 	}
 
+	// wait for file uploaded
+	delayinseconds := 3
+	log.Printf("wait for %d seconds to upload files\n", delayinseconds)
+	time.Sleep(time.Duration(delayinseconds) * time.Second)
+	log.Println("continue test")
+
 	// search by parameters
 	search = app.NewSearchByParameter()
 	search.Mapa["Name"] = []string{"1"}               // should find item 1 with 1 txt file
@@ -132,23 +163,23 @@ func testreqs(ctx context.Context) {
 	search.Mapa["Has file"] = []string{"jpeg"}        // should find item 2 with 2 files
 	err = search.SearchItemByParameters()
 	if err != nil {
-		log.Println("FAIL search:", err)
+		log.Println("FAIL testreqs search 3:", err)
 		return
 	}
 	if len(search.Answer) != 2 {
-		log.Println("ERROR: len(answer) != 2")
+		log.Println("FAIL: testreqs search 3 len(answer) != 2")
 	}
 	var itemidfornext string
-	for key, it := range search.Answer {
-		files, errfiles, errf := app.RequestFilesByFileID(context.Background(), it.FileIDs...)
-		if errf != nil {
-			log.Printf("ERROR: %v,\nproblem file ids:%s", errf, errfiles)
-			return
-		}
-		if len(files) == 0 {
-			log.Printf("ERROR: 0 files returnd from request")
-			return
-		}
+	for key := range search.Answer {
+		// files, errfiles, errf := app.RequestFilesByFileID(context.Background(), it.FileIDs...)
+		// if errf != nil {
+		// 	log.Printf("FAIL: testreqs search 3 file request: %v, problem file ids:%s", errf, errfiles)
+		// 	return
+		// }
+		// if len(files) == 0 {
+		// 	log.Printf("FAIL: 0 files returnd from request")
+		// 	return
+		// }
 		itemidfornext = key
 	}
 	// check file saved
@@ -159,18 +190,18 @@ func testreqs(ctx context.Context) {
 	todeleteitems := []string{itemidfornext}
 	erroritems, errdel := app.DeleteItems(ctx, todeleteitems)
 	if errdel != nil {
-		log.Println("ERROR: delete item error with itemids:", erroritems)
+		log.Printf("FAIL: delete item error: %v,  with itemids:%v\n", errdel, erroritems)
 	}
 
 	// // search deleted item by parameters
-	// search = app.NewSearchByParameter()
-	// search.Mapa["Name"] = []string{"1"}
-	// search.Mapa["Manufacture"] = []string{"Mercedes"} // will not find
-	// err = search.SearchItemByParameters()
-	// if err != nil {
-	// 	log.Println("FAIL search:", err)
-	// 	return
-	// }
+	search = app.NewSearchByParameter()
+	search.Mapa["Name"] = []string{"1"}        // should find one of item total
+	search.Mapa["Has file"] = []string{"jpeg"} // should find one of item total
+	err = search.SearchItemByParameters()
+	if err != nil {
+		log.Println("FAIL search:", err)
+		return
+	}
 
 	log.Println("done testreqs")
 }
@@ -228,6 +259,64 @@ func testParameters(ctx context.Context) {
 	}
 
 	log.Println("done testParameters")
+}
+
+func testAuthUser(ctx context.Context, login, password string) error {
+	err := app.AuthUser(ctx, login, password)
+	if err != nil {
+		log.Println("FAIL authorization user:", err)
+		return err
+	}
+	return nil
+}
+
+func testRegUser(ctx context.Context, login, password string) error {
+	err := app.RegUser(ctx, login, password)
+	if err != nil {
+		log.Println("FAIL authorization user:", err)
+		return err
+	}
+	return nil
+}
+
+func testAuthAndAddItem(ctx context.Context, login, password string) {
+	err := app.AuthUser(ctx, login, password)
+	if err != nil {
+		log.Println("FAIL authorization user:", err)
+		return
+	}
+	testAddItemOnly(ctx, 1)
+
+	time.Sleep(500 * time.Millisecond)
+	// testRegNewRandomUser(ctx)
+
+	time.Sleep(500 * time.Millisecond)
+}
+
+func testRegNewRandomUser(ctx context.Context) {
+	// generate random login/password
+	sum := sha256.Sum256([]byte(strconv.FormatInt(time.Now().UnixNano(), 16)))
+	login := "login_" + hex.EncodeToString(sum[:])
+	password := "password_" + hex.EncodeToString(sum[:])
+
+	testRegUser(ctx, login, password)
+}
+
+func testAddItemOnly(ctx context.Context, presetItemNum int) error {
+	err := app.AddNewItem(ctx, presetItem(presetItemNum))
+	if err != nil {
+		log.Println("FAIL add item:", err)
+		return err
+	}
+	return nil
+}
+
+func testDeleteItemOnly(ctx context.Context, ItemID string) {
+	todeleteitems := []string{ItemID}
+	erroritems, errdel := app.DeleteItems(ctx, todeleteitems)
+	if errdel != nil {
+		log.Printf("FAIL: delete item error: %v,  with itemids:%v\n", errdel, erroritems)
+	}
 }
 
 func presetItem(number int) *appstorage.Item {

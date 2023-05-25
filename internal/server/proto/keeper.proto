@@ -9,6 +9,7 @@ message Item {
 	string userid = 2;
 	string body = 3;
 	repeated string filesid = 4;
+	bool deleted = 5;
 }
 
 message File {
@@ -66,7 +67,7 @@ message UploadFileRequest {
     string fileid = 2;
  }
  message GetFileByFileIDResponse {
-File file = 1;
+	File file = 1;
  }
 
  message DeleteEntityRequest {

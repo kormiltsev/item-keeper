@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"time"
 
 	appstorage "github.com/kormiltsev/item-keeper/internal/app/appstorage"
@@ -55,11 +56,17 @@ func RegUser(ctx context.Context, login, password string) error {
 	}
 
 	// save local
-	appstorage.NewUser(response.Userid, response.Lastupdate)
+	appstorage.NewUser(response.Userid, 0)
 
 	// save current user id
 	currentuser = response.Userid
 	currentlastupdate = response.Lastupdate
+
+	// upload everithing
+	err = UpdateDataFromServer(ctx)
+	if err != nil {
+		log.Println("can't update with new app user:", err)
+	}
 
 	return nil
 }
@@ -116,7 +123,7 @@ func AuthUser(ctx context.Context, login, password string) error {
 	currentlastupdate = 0
 
 	// and go get catalog from server
-	UpdateDataFromServer(context.Background()) // used currentuser and currentlastupdate
+	go UpdateDataFromServer(context.Background()) // used currentuser and currentlastupdate
 
 	return nil
 }

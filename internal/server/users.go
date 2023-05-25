@@ -79,7 +79,11 @@ func (itemserv *ItemServer) AuthUser(ctx context.Context, in *pb.AuthUserRequest
 	if err != nil {
 		if errors.Is(err, serverstorage.ErrPasswordWrong) {
 			log.Println("authorization error:", err)
-			return nil, status.Errorf(codes.InvalidArgument, `User exists`)
+			return nil, status.Errorf(codes.InvalidArgument, `Wrong Password`)
+		}
+		if errors.Is(err, serverstorage.ErrLoginNotFound) {
+			log.Println("authorization error:", err)
+			return nil, status.Errorf(codes.InvalidArgument, `User not exists`)
 		}
 		log.Println("Unknown error from storage: ", err)
 		return nil, status.Errorf(codes.Internal, `unknown error`)

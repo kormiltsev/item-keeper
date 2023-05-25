@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net"
 
@@ -44,7 +43,7 @@ func StartServerGRPC(port string) {
 
 	pb.RegisterItemKeeperServer(s, &ItemServer{})
 
-	fmt.Println("gRPC started")
+	log.Println("gRPC started")
 
 	if err := s.Serve(listen); err != nil {
 		log.Println("gRPC server crushed:", err)

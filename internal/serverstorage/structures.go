@@ -7,6 +7,7 @@ type Item struct {
 	UserID  string
 	Body    string
 	FilesID []string
+	Deleted bool
 }
 
 type File struct {

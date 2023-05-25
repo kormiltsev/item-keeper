@@ -279,6 +279,7 @@ func returnItemsByIDs(itemsids ...string) []Item {
 			UserID:  itm.UserID,
 			Body:    itm.Body,
 			FilesID: make([]string, len(itm.FilesID)),
+			Deleted: itm.Deleted,
 		}
 
 		copy(item.FilesID, itm.FilesID)
@@ -297,13 +298,20 @@ func (mock *ToMock) GetFileByFileID() error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	address := Files[mock.Data.File.FileID].Address
+	fle, ok := Files[mock.Data.File.FileID]
+	if !ok {
+		return nil // if item deleted, itemID exists, but FileID not exists
+	}
 
 	//read file
-	mock.Data.File.Body, err = readFile(address)
+	mock.Data.File.Body, err = readFile(fle.Address)
 	if err != nil {
-		return fmt.Errorf("read file %s error:%v", address, err)
+		return fmt.Errorf("read file %s error:%v", fle.Address, err)
 	}
+
+	// add itemId, coze itemId is not mandatory in request
+	mock.Data.File.ItemID = fle.ItemID
+
 	return nil
 }
 
@@ -347,19 +355,20 @@ func (mock *ToMock) DeleteItems() error {
 		olditem, ok := Items[itemtodelete.ItemID]
 		if ok {
 
+			// delete item folder
+			err := deleteFilesByItemID(olditem.UserID, itemtodelete.ItemID)
+			if err != nil {
+				log.Printf("files deletion for itemid =%s, error:%v\n", itemtodelete.ItemID, err)
+			}
+
 			// file deregistration
 			for _, fileid := range olditem.FilesID {
 				delete(Files, fileid)
 			}
 
-			// delete item folder
-			err := deleteFolderByItemID(olditem.UserID, itemtodelete.ItemID)
-			if err != nil {
-				log.Println("folder deletion error:", err)
-			}
-
-			// delete item in mapa
-			delete(Items, itemtodelete.ItemID)
+			// mark as deleted
+			olditem.Deleted = true
+			Items[itemtodelete.ItemID] = olditem
 		}
 		// log changes
 		logToListOfChanges(mock.Data.File.UserID, mock.Data.File.ItemID)
@@ -379,7 +388,7 @@ func (mock *ToMock) DeleteItems() error {
 // 	}
 
 // 	// remove from storage
-// 	return deleteFolderByItemID(file.UserID, file.ItemID)
+// 	return deleteFilesByItemID(file.UserID, file.ItemID)
 // }
 
 func (mock *ToMock) DeleteFile() error {

@@ -3,7 +3,6 @@ package appstorage
 import (
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"sync"
 )
@@ -47,16 +46,19 @@ func NewUser(userid string, lastUpdate int64) {
 
 	// create new Catalog for new user
 	// remove user's directory with all files and subdirectories
-	err := os.RemoveAll(userFolderPass(userid))
-	if err != nil {
-		log.Printf("can't delete directory for userid = %s, error:%v", userid, err)
-	}
+	// err := os.RemoveAll(userFolderPass(userid))
+	// if err != nil {
+	// 	log.Printf("can't delete directory for userid = %s, error:%v", userid, err)
+	// }
 
 	Catalog.LastUpdate = lastUpdate
 	Catalog.UserID = userid
 	Catalog.Items = map[string]*Item{}
 	Catalog.Files = map[string]*File{} // need to delete files
 	Catalog.parameters = map[string][]string{}
+
+	//erase file storage
+	deleteAllFilesAllUsers()
 
 	// log.Println(Catalog)
 }
@@ -114,14 +116,26 @@ func (op *Operator) FindItemByParameter() error {
 	for key, searchstrings := range op.Search {
 
 		// for every itemID in Catalog.parameters[searchKey]
-		for _, itemid := range op.Mapa.parameters[key] {
+		for i, itemid := range op.Mapa.parameters[key] {
 
 			// is item already in answer list?
 			if _, ok := op.Answer[itemid]; ok {
 				continue
 			}
+
+			// if item deleted, so need to delete it from paramneters list
+			itm, ok := op.Mapa.Items[itemid]
+			if !ok {
+				if i == len(op.Mapa.parameters[key])-1 {
+					op.Mapa.parameters[key] = op.Mapa.parameters[key][:len(op.Mapa.parameters[key])-1]
+				} else {
+					list := op.Mapa.parameters[key]
+					op.Mapa.parameters[key] = append(list[:i], list[i+1:]...)
+				}
+				continue
+			}
 			// search pKeysearch in item's Parameters
-			for _, par := range op.Mapa.Items[itemid].Parameters {
+			for _, par := range itm.Parameters {
 
 				// for every searchVal in search list
 				for _, valsearche := range searchstrings {
@@ -163,33 +177,32 @@ func ReturnIDs() []string {
 	return answer
 }
 
-func (op *Operator) DeleteItemByID(itemids []string) error {
-	if len(itemids) == 0 {
+func (op *Operator) DeleteItemByID(itemid string) error {
+	if len(itemid) == 0 {
 		return fmt.Errorf("empty request")
 	}
 
 	op.Mapa.mu.Lock()
 	defer op.Mapa.mu.Unlock()
 
-	for _, itemid := range itemids {
-		item, ok := op.Mapa.Items[itemid]
-		if !ok {
-			continue
-		}
-
-		// delete folder
-		err := deleteFolderByItemID(op.Mapa.UserID, itemid)
-		if err != nil {
-			log.Println("can't delete local folder for item:", itemid)
-		}
-
-		// unregister files
-		for _, fileid := range item.FileIDs {
-			delete(op.Mapa.Files, fileid)
-		}
-
-		// unregister item
-		delete(op.Mapa.Items, itemid)
+	item, ok := op.Mapa.Items[itemid]
+	if !ok {
+		return nil
 	}
+
+	// delete folder
+	err := deleteFolderByItemID(op.Mapa.UserID, itemid)
+	if err != nil {
+		log.Println("can't delete local folder for item:", itemid)
+	}
+
+	// unregister files
+	for _, fileid := range item.FileIDs {
+		delete(op.Mapa.Files, fileid)
+	}
+
+	// unregister item
+	delete(op.Mapa.Items, itemid)
+
 	return nil
 }

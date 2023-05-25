@@ -122,6 +122,7 @@ func (itemserv *ItemServer) UpdateByLastUpdate(ctx context.Context, in *pb.Updat
 			Userid:  item.UserID,
 			Body:    item.Body,
 			Filesid: item.FilesID,
+			Deleted: item.Deleted,
 		}
 
 		response.Item = append(response.Item, &itm)
@@ -221,7 +222,7 @@ func (itemserv *ItemServer) DeleteEntity(ctx context.Context, in *pb.DeleteEntit
 	err := tostor.DB.DeleteItems()
 	if err != nil {
 		// return error?
-		log.Println("error delete items")
+		log.Println("error delete items:", err)
 	}
 
 	for _, item := range tostor.List {

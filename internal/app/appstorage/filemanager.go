@@ -3,6 +3,7 @@ package appstorage
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -17,6 +18,22 @@ func itemFolderPass(userid, itemid string) string {
 
 func NewFileStruct() *File {
 	return &File{Body: make([]byte, 0)}
+}
+
+func deleteAllFilesAllUsers() {
+	err := os.RemoveAll(localstorageaddress)
+	if err != nil {
+		log.Println("can't delete Catalog directory:", err)
+	}
+}
+
+func deleteFolderByItemID(userid, itemid string) error {
+	err := os.RemoveAll(itemFolderPass(userid, itemid))
+	log.Println(itemFolderPass(userid, itemid))
+	if err != nil {
+		return fmt.Errorf("can't delete folder:%v For itemID =%s", err, itemid)
+	}
+	return nil
 }
 
 func (file *File) PrepareFile(pass string) error {
@@ -50,8 +67,7 @@ func (file *File) SaveFileLocal(pass string) error {
 	}
 
 	// create path localstorage/userid/itemid
-	path := filepath.Join(localstorageaddress, file.UserID)
-	path = filepath.Join(path, file.ItemID)
+	path := itemFolderPass(file.UserID, file.ItemID)
 
 	// create folder if not exists
 	err := os.MkdirAll(path, os.ModePerm)
@@ -101,36 +117,3 @@ func readFile(fileaddress string) ([]byte, int64, error) {
 
 	return bytes, size, err
 }
-
-func deleteFolderByItemID(userid, itemid string) error {
-	err := os.RemoveAll(itemFolderPass(userid, itemid))
-	if err != nil {
-		return fmt.Errorf("can't delete folder:%v For itemID =%s", err, itemid)
-	}
-	return nil
-}
-
-// func saveFilesLocal(cc *client.ClientConnector) {
-// 	path := filepath.Join(localstorageaddress, cc.UserID)
-
-// 	for _, item := range cc.Items {
-// 		// create folder if not exists
-// 		err := os.MkdirAll(path, os.ModePerm)
-// 		if err != nil {
-// 			log.Println("file storage can't create directory to store file:", err)
-// 			return
-// 		}
-
-// 		for _, file := range item.Images {
-// 			if len(file.Body) != 0 {
-// 				path = filepath.Join(path, item.Id)
-
-// 				err = os.WriteFile(path, file.Body, 0644)
-// 				if err != nil {
-// 					log.Println("file storage error, check FILESERVERADDRESS available:", err)
-// 				}
-
-// 			}
-// 		}
-// 	}
-// }

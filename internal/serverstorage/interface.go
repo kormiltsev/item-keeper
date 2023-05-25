@@ -12,10 +12,6 @@ type Storager interface {
 	GetFileByFileID() error
 	DeleteItems() error
 	DeleteFile() error
-	// UpdateItemsImageLinks()
-	// DeleteItem(context.Context)
-	// CreateUser(context.Context)
-	// LoginUser(context.Context)
 	Connect(context.Context) error
 	Disconnect()
 }
