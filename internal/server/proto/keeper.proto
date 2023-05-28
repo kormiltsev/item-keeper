@@ -5,7 +5,7 @@ package item_keeper;
 option go_package = "item_keeper/internal/server/proto";
 
 message Item {
-	string itemid = 1;
+	int64 itemid = 1;
 	string userid = 2;
 	string body = 3;
 	repeated string filesid = 4;
@@ -13,7 +13,7 @@ message Item {
 }
 
 message File {
-	string itemid = 1;
+	int64 itemid = 1;
 	string userid = 2;
 	string fileid = 3;
     bytes body = 4;
@@ -50,7 +50,7 @@ message UploadFileRequest {
  message UploadFileResponse {
 	string fileid = 1;  
 	string userid = 2;
-    string itemid = 3;
+    int64 itemid = 3;
  }
 
  message UpdateByLastUpdateRequest {
@@ -72,12 +72,12 @@ message UploadFileRequest {
 
  message DeleteEntityRequest {
 	repeated string userid = 1;
-	repeated string itemid = 2;
+	repeated int64 itemid = 2;
 	repeated string fileid = 3; 
 }
  message DeleteEntityResponse {
 	repeated string userid = 1;
-	repeated string itemid = 2;
+	repeated int64 itemid = 2;
 	repeated string fileid = 3; 
  }
 

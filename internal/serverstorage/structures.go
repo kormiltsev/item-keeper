@@ -3,7 +3,7 @@ package serverstorage
 import "errors"
 
 type Item struct {
-	ItemID  string
+	ItemID  int64
 	UserID  string
 	Body    string
 	FilesID []string
@@ -13,7 +13,7 @@ type Item struct {
 type File struct {
 	FileID  string
 	UserID  string
-	ItemID  string
+	ItemID  int64
 	Address string
 	Body    []byte
 }

@@ -49,7 +49,7 @@ func main() {
 	// time.Sleep(1 * time.Second)
 	// testAuthAndAddItem(ctx, "Userman", "passman")
 	// time.Sleep(2 * time.Second)
-	// testDeleteItemOnly(ctx, "8910244cb879f0a95fa2df71b602ecbf6465bce61f2c9bcd46db5d63b81d52cf")
+	// testDeleteItemOnly(ctx, 1)
 	// time.Sleep(1 * time.Second)
 }
 
@@ -169,7 +169,7 @@ func testreqs(ctx context.Context) {
 	if len(search.Answer) != 2 {
 		log.Println("FAIL: testreqs search 3 len(answer) != 2")
 	}
-	var itemidfornext string
+	var itemidfornext int64
 	for key := range search.Answer {
 		// files, errfiles, errf := app.RequestFilesByFileID(context.Background(), it.FileIDs...)
 		// if errf != nil {
@@ -187,7 +187,7 @@ func testreqs(ctx context.Context) {
 	// ===============
 
 	// delete item from prevous check
-	todeleteitems := []string{itemidfornext}
+	todeleteitems := []int64{itemidfornext}
 	erroritems, errdel := app.DeleteItems(ctx, todeleteitems)
 	if errdel != nil {
 		log.Printf("FAIL: delete item error: %v,  with itemids:%v\n", errdel, erroritems)
@@ -311,8 +311,8 @@ func testAddItemOnly(ctx context.Context, presetItemNum int) error {
 	return nil
 }
 
-func testDeleteItemOnly(ctx context.Context, ItemID string) {
-	todeleteitems := []string{ItemID}
+func testDeleteItemOnly(ctx context.Context, ItemID int64) {
+	todeleteitems := []int64{ItemID}
 	erroritems, errdel := app.DeleteItems(ctx, todeleteitems)
 	if errdel != nil {
 		log.Printf("FAIL: delete item error: %v,  with itemids:%v\n", errdel, erroritems)

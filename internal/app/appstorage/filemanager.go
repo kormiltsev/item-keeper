@@ -6,14 +6,15 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 func userFolderPass(userid string) string {
 	return filepath.Join(localstorageaddress, userid)
 }
 
-func itemFolderPass(userid, itemid string) string {
-	return filepath.Join(userFolderPass(userid), itemid)
+func itemFolderPass(userid string, itemid int64) string {
+	return filepath.Join(userFolderPass(userid), strconv.FormatInt(itemid, 10))
 }
 
 func NewFileStruct() *File {
@@ -27,11 +28,11 @@ func deleteAllFilesAllUsers() {
 	}
 }
 
-func deleteFolderByItemID(userid, itemid string) error {
+func deleteFolderByItemID(userid string, itemid int64) error {
 	err := os.RemoveAll(itemFolderPass(userid, itemid))
 	log.Println(itemFolderPass(userid, itemid))
 	if err != nil {
-		return fmt.Errorf("can't delete folder:%v For itemID =%s", err, itemid)
+		return fmt.Errorf("can't delete folder:%v For itemID =%d", err, itemid)
 	}
 	return nil
 }

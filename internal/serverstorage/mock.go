@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -23,22 +24,27 @@ type ToMock struct {
 type onechange struct {
 	userid  string
 	updated int64
-	itemid  string
+	itemid  int64
 }
 
 // database realosation
-var mu = sync.Mutex{}
-var Users = map[string]*User{} // key= login
-var Items = map[string]*Item{} // key = ItemID
-var Files = map[string]*File{} // key = FileID
+var (
+	mu    = sync.Mutex{}
+	Users = map[string]*User{} // key= login
+	Items = map[int64]*Item{}  // key = ItemID
+	Files = map[string]*File{} // key = FileID
+)
 
 // log of changes
 var listOfChanges = []onechange{}
 
+// for itemID uniq number
+var itemIDcounter int64
+
 var errFileIDExists = errors.New("file id exists")
 
 // RegUser register new user and returns UserID
-func (mock *ToMock) RegUser() error {
+func (mock *ToMock) RegUser(ctx context.Context) error {
 
 	if mock.Data.User.Login == "" || mock.Data.User.Password == "" {
 		return ErrEmptyRequest
@@ -62,7 +68,7 @@ func (mock *ToMock) RegUser() error {
 }
 
 // AuthUser returns UserID, or error
-func (mock *ToMock) AuthUser() error {
+func (mock *ToMock) AuthUser(ctx context.Context) error {
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -103,18 +109,21 @@ func (mock *ToMock) createUserID() {
 }
 
 // PutItems add or update item. just replaced by new one
-func (mock *ToMock) PutItems() error {
+func (mock *ToMock) PutItems(ctx context.Context) error {
 	// error if empty
 	if len(mock.Data.List) == 0 {
 		return ErrEmptyRequest
 	}
 
 	// if items more than 1
-	for i, item := range mock.Data.List {
+	for i := range mock.Data.List {
 		// empty ItemID means add new item
-		if mock.Data.List[i].ItemID == "" {
-			sum := sha256.Sum256([]byte(item.UserID + strconv.FormatInt(time.Now().UnixNano(), 16)))
-			mock.Data.List[i].ItemID = hex.EncodeToString(sum[:])
+		if mock.Data.List[i].ItemID == 0 {
+			mock.Data.List[i].ItemID = atomic.AddInt64(&itemIDcounter, 1)
+
+			// old: string
+			// sum := sha256.Sum256([]byte(item.UserID + strconv.FormatInt(time.Now().UnixNano(), 16)))
+			// mock.Data.List[i].ItemID = hex.EncodeToString(sum[:])
 		}
 	}
 
@@ -140,7 +149,7 @@ func (mock *ToMock) PutItems() error {
 }
 
 // internal use logger
-func logToListOfChanges(userid, itemid string) {
+func logToListOfChanges(userid string, itemid int64) {
 
 	newlog := onechange{
 		userid:  userid,
@@ -151,7 +160,7 @@ func logToListOfChanges(userid, itemid string) {
 }
 
 // UploadFile accepts file, save it in storage and
-func (mock *ToMock) UploadFile() error {
+func (mock *ToMock) UploadFile(ctx context.Context) error {
 
 	// check body
 	if len(mock.Data.File.Body) == 0 {
@@ -165,12 +174,12 @@ func (mock *ToMock) UploadFile() error {
 	// check for doubles
 	err := checkForDoublesFileID(mock.Data.File.FileID)
 	if errors.Is(err, errFileIDExists) {
-		return mock.UploadFile() // recreate id if fileID is already exists
+		return mock.UploadFile(ctx) // recreate id if fileID is already exists
 	}
 
 	// create path localstorage/userid/itemid
 	path := filepath.Join(storageaddress, mock.Data.File.UserID)
-	path = filepath.Join(path, mock.Data.File.ItemID)
+	path = filepath.Join(path, strconv.FormatInt(mock.Data.File.ItemID, 10))
 
 	// create folder if not exists
 	err = os.MkdirAll(path, os.ModePerm)
@@ -222,7 +231,7 @@ func addFileAddressToItems(file *File) error {
 	// register files id to item
 	item, ok := Items[file.ItemID]
 	if !ok {
-		return fmt.Errorf("wrong ItemID, not found item %s", file.ItemID)
+		return fmt.Errorf("wrong ItemID, not found item %d", file.ItemID)
 	}
 	item.FilesID = append(item.FilesID, file.FileID)
 	Items[file.ItemID] = item
@@ -230,7 +239,7 @@ func addFileAddressToItems(file *File) error {
 }
 
 // UpdateByLastUpdate accepts lastUpdate date from client and returns list if items that edited after lastUpdate
-func (mock *ToMock) UpdateByLastUpdate() error {
+func (mock *ToMock) UpdateByLastUpdate(ctx context.Context) error {
 	log.Println("lastupdate requested:", mock.Data.User.LastUpdate)
 	mock.Data.List = mock.Data.List[:0]
 
@@ -244,12 +253,12 @@ func (mock *ToMock) UpdateByLastUpdate() error {
 	return nil
 }
 
-func returnItemIDChanged(userid string, lastupdate int64) ([]string, int64) {
+func returnItemIDChanged(userid string, lastupdate int64) ([]int64, int64) {
 	mu.Lock()
 	defer mu.Unlock()
 
 	var luanswer int64
-	answer := make([]string, 0)
+	answer := make([]int64, 0)
 	for i := len(listOfChanges) - 1; i >= 0; i-- {
 		if listOfChanges[i].userid == userid && listOfChanges[i].updated > lastupdate {
 			answer = append(answer, listOfChanges[i].itemid)
@@ -261,7 +270,7 @@ func returnItemIDChanged(userid string, lastupdate int64) ([]string, int64) {
 	return answer, luanswer
 }
 
-func returnItemsByIDs(itemsids ...string) []Item {
+func returnItemsByIDs(itemsids ...int64) []Item {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -292,7 +301,7 @@ func returnItemsByIDs(itemsids ...string) []Item {
 	return answer
 }
 
-func (mock *ToMock) GetFileByFileID() error {
+func (mock *ToMock) GetFileByFileID(ctx context.Context) error {
 	var err error
 
 	mu.Lock()
@@ -337,7 +346,7 @@ func readFile(fileaddress string) ([]byte, error) {
 	return bytes, err
 }
 
-func (mock *ToMock) DeleteItems() error {
+func (mock *ToMock) DeleteItems(ctx context.Context) error {
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -348,7 +357,7 @@ func (mock *ToMock) DeleteItems() error {
 	}
 
 	for i, itemtodelete := range mock.Data.List {
-		if itemtodelete.ItemID == "" {
+		if itemtodelete.ItemID == 0 {
 			continue
 		}
 
@@ -358,7 +367,7 @@ func (mock *ToMock) DeleteItems() error {
 			// delete item folder
 			err := deleteFilesByItemID(olditem.UserID, itemtodelete.ItemID)
 			if err != nil {
-				log.Printf("files deletion for itemid =%s, error:%v\n", itemtodelete.ItemID, err)
+				log.Printf("files deletion for itemid =%d, error:%v\n", itemtodelete.ItemID, err)
 			}
 
 			// file deregistration
@@ -391,7 +400,7 @@ func (mock *ToMock) DeleteItems() error {
 // 	return deleteFilesByItemID(file.UserID, file.ItemID)
 // }
 
-func (mock *ToMock) DeleteFile() error {
+func (mock *ToMock) DeleteFile(ctx context.Context) error {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -399,7 +408,7 @@ func (mock *ToMock) DeleteFile() error {
 	if !ok {
 		return ErrItemNotFound
 	}
-	return deleteFileByFileID(file.UserID, file.ItemID, file.FileID)
+	return deleteFileByFileID(file.ItemID, file.UserID, file.FileID)
 }
 
 func (mock *ToMock) Connect(ctx context.Context) error {

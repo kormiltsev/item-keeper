@@ -7,7 +7,7 @@ type Parameter struct {
 
 type Item struct {
 	UserID        string
-	ItemID        string
+	ItemID        int64
 	Parameters    []Parameter
 	FileIDs       []string
 	UploadAddress []string
@@ -16,7 +16,7 @@ type Item struct {
 type File struct {
 	FileID  string
 	UserID  string
-	ItemID  string
+	ItemID  int64
 	Address string // for storage
 	Body    []byte // not for store
 	Hash    string // not for store

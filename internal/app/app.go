@@ -16,14 +16,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// func presetItem() *appstorage.Item {
-// 	return &appstorage.Item{
-// 		UserID:        currentuser,
-// 		Parameters:    []appstorage.Parameter{{Name: "Parameter1", Value: "val1"}, {Name: "Parameter2", Value: "val2"}},
-// 		UploadAddress: []string{"./data/sourceClient/test.txt", "./data/sourceClient/Jocker.jpeg"},
-// 	}
-// }
-
 func NewAppItem() *appstorage.Item {
 	return &appstorage.Item{}
 }
@@ -70,7 +62,7 @@ func AddNewItem(ctx context.Context, appitem *appstorage.Item) error {
 	}
 
 	// if empty response
-	if response.Item.Itemid == "" {
+	if response.Item.Itemid == 0 {
 		log.Println("FAIL: PutItems() empty response from server")
 		return fmt.Errorf(`server internal error`)
 	}
@@ -407,7 +399,7 @@ func checkHas(body []byte, hash []byte) bool {
 }
 
 // DeleteItems return errored items and error
-func DeleteItems(ctx context.Context, itemids []string) ([]string, error) {
+func DeleteItems(ctx context.Context, itemids []int64) ([]int64, error) {
 	// if empty
 	if len(itemids) == 0 {
 		return nil, fmt.Errorf("empty request")

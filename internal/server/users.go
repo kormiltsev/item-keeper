@@ -35,7 +35,7 @@ func (itemserv *ItemServer) RegUser(ctx context.Context, in *pb.RegUserRequest) 
 	}
 
 	// reg user on server
-	err := tostorage.DB.RegUser()
+	err := tostorage.DB.RegUser(ctx)
 	if err != nil {
 		if errors.Is(err, serverstorage.ErrUserExists) {
 			log.Println("Creating new user:", err)
@@ -75,7 +75,7 @@ func (itemserv *ItemServer) AuthUser(ctx context.Context, in *pb.AuthUserRequest
 	}
 
 	// reg user on server
-	err := tostorage.DB.AuthUser()
+	err := tostorage.DB.AuthUser(ctx)
 	if err != nil {
 		if errors.Is(err, serverstorage.ErrPasswordWrong) {
 			log.Println("authorization error:", err)

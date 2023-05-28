@@ -1,5 +1,7 @@
 package serverstorage
 
+import configs "github.com/kormiltsev/item-keeper/internal/configs"
+
 type ToStorage struct {
 	DB    Storager
 	User  *User
@@ -10,19 +12,17 @@ type ToStorage struct {
 
 func NewStorager(tostor *ToStorage) Storager {
 
-	// if configs.ServiceConfig.DBlink == "mock" || configs.ServiceConfig.DBlink == "" {
-	stora := ToMock{}
-	tostor.DB = &stora
-	stora.Data = tostor
-	return &stora
-	// }
+	if configs.ServiceConfig.DBlink == "mock" || configs.ServiceConfig.DBlink == "" {
+		stora := ToMock{}
+		tostor.DB = &stora
+		stora.Data = tostor
+		return &stora
+	}
 
-	// postgra := ToPostgres{
-	// 	db: db,
-	// }
-	// tostor.DB = &postgra
-	// postgra.Data = tostor
-	// return &postgra
+	postgra := ToPostgres{}
+	tostor.DB = &postgra
+	postgra.Data = tostor
+	return &postgra
 }
 
 func NewToStorage() *ToStorage {

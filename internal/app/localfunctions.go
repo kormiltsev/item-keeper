@@ -9,8 +9,8 @@ import (
 
 type SearchByParameters struct {
 	Mapa          map[string][]string
-	Answer        map[string]*appstorage.Item
-	FileAddresses map[string][]string //key ItemID, list of file Addresses
+	Answer        map[int64]*appstorage.Item
+	FileAddresses map[int64][]string //key ItemID, list of file Addresses, for UI uses
 }
 
 func NewSearchByParameter() *SearchByParameters {
@@ -21,8 +21,8 @@ func NewSearchByParameter() *SearchByParameters {
 func (searchmapa *SearchByParameters) SearchItemByParameters() error {
 
 	// erase data if exists
-	searchmapa.Answer = map[string]*appstorage.Item{}
-	searchmapa.FileAddresses = map[string][]string{}
+	searchmapa.Answer = map[int64]*appstorage.Item{}
+	searchmapa.FileAddresses = map[int64][]string{}
 
 	// prepare to server
 	oper, err := appstorage.ReturnOperator(currentuser)

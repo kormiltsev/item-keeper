@@ -15,18 +15,18 @@ type List struct {
 	LastUpdate int64
 	UserID     string
 	mu         sync.Mutex
-	Items      map[string]*Item
-	Files      map[string]*File
-	parameters map[string][]string // only for searche and display
+	Items      map[int64]*Item    // key = itemid
+	Files      map[string]*File   // key = fileid
+	parameters map[string][]int64 // only for search and display; key = param.name
 }
 
 var Catalog = List{
 	LastUpdate: 0,
 	UserID:     "AppUser",
 	mu:         sync.Mutex{},
-	Items:      map[string]*Item{},
+	Items:      map[int64]*Item{},
 	Files:      map[string]*File{},
-	parameters: map[string][]string{},
+	parameters: map[string][]int64{},
 }
 
 type Operator struct {
@@ -34,8 +34,8 @@ type Operator struct {
 	Mapa            *List
 	LastUpdate      int64
 	Search          map[string][]string
-	Answer          map[string]*Item
-	AnswerAddresses map[string][]string
+	Answer          map[int64]*Item
+	AnswerAddresses map[int64][]string
 }
 
 var ErrEmptyRequest = fmt.Errorf("empty request")
@@ -53,9 +53,9 @@ func NewUser(userid string, lastUpdate int64) {
 
 	Catalog.LastUpdate = lastUpdate
 	Catalog.UserID = userid
-	Catalog.Items = map[string]*Item{}
+	Catalog.Items = map[int64]*Item{}
 	Catalog.Files = map[string]*File{} // need to delete files
-	Catalog.parameters = map[string][]string{}
+	Catalog.parameters = map[string][]int64{}
 
 	//erase file storage
 	deleteAllFilesAllUsers()
@@ -80,8 +80,8 @@ func ReturnOperator(userid string) (*Operator, error) {
 		UserID:          userid,
 		Mapa:            &Catalog,
 		Search:          map[string][]string{},
-		Answer:          map[string]*Item{},
-		AnswerAddresses: map[string][]string{},
+		Answer:          map[int64]*Item{},
+		AnswerAddresses: map[int64][]string{},
 	}, nil
 }
 
@@ -152,7 +152,7 @@ func (op *Operator) FindItemByParameter() error {
 	return nil
 }
 
-func (op *Operator) addFilesAddresses(itemid string) []string {
+func (op *Operator) addFilesAddresses(itemid int64) []string {
 	answer := make([]string, 0)
 	item := op.Mapa.Items[itemid]
 	for _, flid := range item.FileIDs {
@@ -168,17 +168,17 @@ func (op *Operator) addFilesAddresses(itemid string) []string {
 	return answer
 }
 
-func ReturnIDs() []string {
-	answer := make([]string, len(Catalog.Items))
-	i := 0
-	for k := range Catalog.Items {
-		answer[i] = k
-	}
-	return answer
-}
+// func ReturnIDs() []int64 {
+// 	answer := make([]int64, len(Catalog.Items))
+// 	i := 0
+// 	for k := range Catalog.Items {
+// 		answer[i] = k
+// 	}
+// 	return answer
+// }
 
-func (op *Operator) DeleteItemByID(itemid string) error {
-	if len(itemid) == 0 {
+func (op *Operator) DeleteItemByID(itemid int64) error {
+	if itemid <= 0 {
 		return fmt.Errorf("empty request")
 	}
 

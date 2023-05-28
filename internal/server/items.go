@@ -28,7 +28,7 @@ func (itemserv *ItemServer) PutItems(ctx context.Context, in *pb.PutItemsRequest
 	tostor.DB = serverstorage.NewStorager(tostor)
 
 	// to server
-	err := tostor.DB.PutItems()
+	err := tostor.DB.PutItems(ctx)
 	if err != nil {
 		if errors.Is(err, serverstorage.ErrEmptyRequest) {
 			log.Println("put items:", err)
@@ -74,7 +74,7 @@ func (itemserv *ItemServer) UploadFile(ctx context.Context, in *pb.UploadFileReq
 	tostor.DB = serverstorage.NewStorager(tostor)
 
 	// upload file to server
-	err := tostor.DB.UploadFile()
+	err := tostor.DB.UploadFile(ctx)
 	if err != nil {
 		log.Println("can't upload file to server:", tostor.File.FileID, "error:", err)
 		return nil, status.Errorf(codes.Internal, `can't save file`)
@@ -106,7 +106,7 @@ func (itemserv *ItemServer) UpdateByLastUpdate(ctx context.Context, in *pb.Updat
 	tostor.DB = serverstorage.NewStorager(tostor)
 
 	// to server
-	err := tostor.DB.UpdateByLastUpdate()
+	err := tostor.DB.UpdateByLastUpdate(ctx)
 	if err != nil {
 		log.Println("UpdateByLastUpdate err:", err)
 	}
@@ -143,7 +143,7 @@ func (itemserv *ItemServer) GetFileByFileID(ctx context.Context, in *pb.GetFileB
 	tostor.DB = serverstorage.NewStorager(tostor)
 
 	// to server
-	err := tostor.DB.GetFileByFileID()
+	err := tostor.DB.GetFileByFileID(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, `can't download file`)
 	}
@@ -177,7 +177,7 @@ func (itemserv *ItemServer) DeleteEntity(ctx context.Context, in *pb.DeleteEntit
 	// create response
 	var response = pb.DeleteEntityResponse{
 		Userid: make([]string, 0),
-		Itemid: make([]string, 0),
+		Itemid: make([]int64, 0),
 		Fileid: make([]string, 0),
 	}
 
@@ -193,7 +193,7 @@ func (itemserv *ItemServer) DeleteEntity(ctx context.Context, in *pb.DeleteEntit
 		tostor.DB = serverstorage.NewStorager(tostor)
 
 		// to server
-		err := tostor.DB.DeleteFile()
+		err := tostor.DB.DeleteFile(ctx)
 		if err != nil {
 			if errors.Is(err, serverstorage.ErrItemNotFound) {
 				log.Println("file not found, skipped fileid:", fileid)
@@ -219,14 +219,14 @@ func (itemserv *ItemServer) DeleteEntity(ctx context.Context, in *pb.DeleteEntit
 	tostor.DB = serverstorage.NewStorager(tostor)
 
 	// to server
-	err := tostor.DB.DeleteItems()
+	err := tostor.DB.DeleteItems(ctx)
 	if err != nil {
 		// return error?
 		log.Println("error delete items:", err)
 	}
 
 	for _, item := range tostor.List {
-		if item.ItemID != "" {
+		if item.ItemID != 0 {
 			response.Itemid = append(response.Itemid, item.ItemID)
 		}
 	}
