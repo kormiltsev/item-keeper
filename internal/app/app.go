@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	appstorage "github.com/kormiltsev/item-keeper/internal/app/appstorage"
@@ -105,7 +104,7 @@ func uploadFileFromItemToServer(appitem *appstorage.Item) {
 	// prepare and send files after NewItemID was created by server
 	for i, fileaddress := range appitem.UploadAddress {
 		file := appstorage.NewFileStruct()
-		file.FileID = strconv.Itoa(i) // temporary id to upload
+		file.FileID = int64(i) // temporary id to upload
 		file.ItemID = appitem.ItemID
 		file.UserID = appitem.UserID
 		file.Address = fileaddress
@@ -179,6 +178,11 @@ func uploadEncryptedFileToServer(ctx context.Context, file *appstorage.File) err
 					response, err = cl.UploadFile(cc.Ctx, &req)
 					again++
 				}
+
+				if again == 3 {
+					return fmt.Errorf("UploadFile error, server not responding")
+				}
+
 				if err != nil {
 					return fmt.Errorf(`recieving data lost: %v`, e.Message())
 				}
@@ -232,7 +236,6 @@ func UpdateDataFromServer(ctx context.Context) error {
 	}
 
 	// set last update same as data from server
-	currentlastupdate = response.Lastupdate
 	operator.LastUpdate = response.Lastupdate
 
 	answer := make([]*appstorage.Item, 0, len(response.Item))
@@ -266,14 +269,14 @@ func UpdateDataFromServer(ctx context.Context) error {
 		// add itemid from server
 		newitem.ItemID = itm.Itemid
 
-		// upload file ids into local item
-		newitem.FileIDs = make([]string, 0, len(itm.Filesid))
-		for _, fileid := range itm.Filesid {
-			if len(fileid) == 0 {
-				continue
-			}
-			newitem.FileIDs = append(newitem.FileIDs, fileid)
-		}
+		// // upload file ids into local item
+		// newitem.FileIDs = make([]int64, 0, len(itm.Filesid))
+		// for _, fileid := range itm.Filesid {
+		// 	if len(fileid) == 0 {
+		// 		continue
+		// 	}
+		// 	newitem.FileIDs = append(newitem.FileIDs, fileid)
+		// }
 
 		// making answer slice of items
 		answer = append(answer, newitem)
@@ -286,21 +289,36 @@ func UpdateDataFromServer(ctx context.Context) error {
 		log.Println("can't save item local:", err)
 	}
 
-	// download files
-	fileIDs := make([]string, 0)
-	for _, item := range answer {
-		fileIDs = append(fileIDs, item.FileIDs...)
+	// for every fileNoBody add in id to item
+	fls := make([]appstorage.File, 0, len(response.File))
+	flsids := make([]int64, 0, len(response.File))
+	for _, fle := range response.File {
+		// register files id to items in mapa of items
+		var fl = appstorage.File{
+			FileID: fle.Fileid,
+			ItemID: fle.Itemid,
+		}
+		fls = append(fls, fl)
+
+		flsids = append(flsids, fl.FileID)
 	}
 
-	// download files (run goroutine)
-	if len(fileIDs) != 0 {
-		go requestFilesByFileID(0, fileIDs)
+	err = operator.RegisterFilesToItems(fls...)
+	if err != nil {
+		log.Println("can't register files to item local:", err)
+		return err
 	}
+
+	// set lust update as on server
+	currentlastupdate = response.Lastupdate
+
+	// download files (run goroutine)
+	go requestFilesByFileID(0, flsids)
 
 	return nil
 }
 
-func requestFilesByFileID(tryNumber int, listOfFileids []string) {
+func requestFilesByFileID(tryNumber int, listOfFileids []int64) {
 	doneFilesID, nondoneFilesID, err := RequestFilesByFileID(context.Background(), listOfFileids...)
 	if err != nil {
 		log.Printf("%d/%d files downloaded, error: %v", len(doneFilesID), len(listOfFileids), err)
@@ -318,14 +336,14 @@ func requestFilesByFileID(tryNumber int, listOfFileids []string) {
 }
 
 // RequestFilesByFileID returns files ids dawnloaded successfully and error (if some of them not recieved)
-func RequestFilesByFileID(ctx context.Context, fileids ...string) ([]string, []string, error) {
+func RequestFilesByFileID(ctx context.Context, fileids ...int64) ([]int64, []int64, error) {
 	var err error
 	if len(fileids) == 0 {
 		return nil, nil, fmt.Errorf("empty request")
 	}
 
-	readyfiles := make([]string, 0)
-	errorfiles := make([]string, 0)
+	readyfiles := make([]int64, 0)
+	errorfiles := make([]int64, 0)
 	for _, fileid := range fileids {
 
 		err = requestFileByFileID(ctx, fileid)
@@ -344,7 +362,7 @@ func RequestFilesByFileID(ctx context.Context, fileids ...string) ([]string, []s
 	return readyfiles, nil, nil
 }
 
-func requestFileByFileID(ctx context.Context, fileid string) error {
+func requestFileByFileID(ctx context.Context, fileid int64) error {
 	// buil request
 	req := pb.GetFileByFileIDRequest{
 		Userid: currentuser,
@@ -369,7 +387,7 @@ func requestFileByFileID(ctx context.Context, fileid string) error {
 	}
 
 	if !checkHas(response.File.Body, response.File.Hash) {
-		return fmt.Errorf("response body damaged, file id:%s", req.Fileid)
+		return fmt.Errorf("response body damaged, file id:%d", req.Fileid)
 	}
 
 	// check if other user authorized local already? then no need to save file local

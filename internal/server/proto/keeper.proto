@@ -8,16 +8,17 @@ message Item {
 	int64 itemid = 1;
 	string userid = 2;
 	string body = 3;
-	repeated string filesid = 4;
+	repeated int64 filesid = 4;
 	bool deleted = 5;
 }
 
 message File {
 	int64 itemid = 1;
 	string userid = 2;
-	string fileid = 3;
+	int64 fileid = 3;
     bytes body = 4;
 	bytes hash = 5;
+	bool deleted = 6;
 }
 
 message RegUserRequest {
@@ -48,7 +49,7 @@ message UploadFileRequest {
 	File file = 1;
  }
  message UploadFileResponse {
-	string fileid = 1;  
+	int64 fileid = 1;  
 	string userid = 2;
     int64 itemid = 3;
  }
@@ -60,11 +61,12 @@ message UploadFileRequest {
  message UpdateByLastUpdateResponse {
 	int64 lastupdate = 1;
     repeated Item item = 2;
+	repeated File file = 3;
  }
 
  message GetFileByFileIDRequest {
 	string userid = 1;
-    string fileid = 2;
+    int64 fileid = 2;
  }
  message GetFileByFileIDResponse {
 	File file = 1;
@@ -73,12 +75,12 @@ message UploadFileRequest {
  message DeleteEntityRequest {
 	repeated string userid = 1;
 	repeated int64 itemid = 2;
-	repeated string fileid = 3; 
+	repeated int64 fileid = 3; 
 }
  message DeleteEntityResponse {
 	repeated string userid = 1;
 	repeated int64 itemid = 2;
-	repeated string fileid = 3; 
+	repeated int64 fileid = 3; 
  }
 
  service ItemKeeper {

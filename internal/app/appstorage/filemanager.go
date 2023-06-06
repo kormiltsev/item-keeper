@@ -58,7 +58,7 @@ func (file *File) PrepareFile(pass string) error {
 }
 
 func (file *File) SaveFileLocal(pass string) error {
-	if file.FileID == "" {
+	if file.FileID == 0 {
 		return fmt.Errorf("fileID not ready, file not saved local, need run request for files")
 	}
 
@@ -80,7 +80,7 @@ func (file *File) SaveFileLocal(pass string) error {
 	decodedfile, err := FileDecrypt(file.Body, pass)
 
 	// write file
-	path = filepath.Join(path, file.FileID)
+	path = filepath.Join(path, strconv.FormatInt(file.FileID, 10))
 	err = os.WriteFile(path, decodedfile, 0644)
 	if err != nil {
 		return fmt.Errorf("write file %s error:%v", path, err)

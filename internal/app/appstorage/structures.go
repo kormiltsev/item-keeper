@@ -9,12 +9,12 @@ type Item struct {
 	UserID        string
 	ItemID        int64
 	Parameters    []Parameter
-	FileIDs       []string
+	FileIDs       []int64
 	UploadAddress []string
 }
 
 type File struct {
-	FileID  string
+	FileID  int64
 	UserID  string
 	ItemID  int64
 	Address string // for storage

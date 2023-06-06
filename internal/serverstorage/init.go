@@ -3,11 +3,12 @@ package serverstorage
 import configs "github.com/kormiltsev/item-keeper/internal/configs"
 
 type ToStorage struct {
-	DB    Storager
-	User  *User
-	List  []Item
-	File  File
-	Error error
+	DB          Storager
+	User        *User
+	List        []Item
+	File        File
+	FilesNoBody []File // response on Update request, files has no bodyes
+	Error       error
 }
 
 func NewStorager(tostor *ToStorage) Storager {
@@ -33,7 +34,7 @@ func NewToStorage() *ToStorage {
 }
 
 func NewItem() *Item {
-	return &Item{FilesID: make([]string, 0)}
+	return &Item{FilesID: make([]int64, 0)}
 }
 
 func NewFile() *File {

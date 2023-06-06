@@ -127,6 +127,17 @@ func (itemserv *ItemServer) UpdateByLastUpdate(ctx context.Context, in *pb.Updat
 
 		response.Item = append(response.Item, &itm)
 	}
+
+	for _, filesNoBody := range tostor.FilesNoBody {
+		fle := pb.File{
+			Itemid:  filesNoBody.ItemID,
+			Userid:  filesNoBody.UserID,
+			Fileid:  filesNoBody.FileID,
+			Deleted: filesNoBody.Deleted,
+		}
+
+		response.File = append(response.File, &fle)
+	}
 	return &response, nil
 }
 
@@ -178,7 +189,7 @@ func (itemserv *ItemServer) DeleteEntity(ctx context.Context, in *pb.DeleteEntit
 	var response = pb.DeleteEntityResponse{
 		Userid: make([]string, 0),
 		Itemid: make([]int64, 0),
-		Fileid: make([]string, 0),
+		Fileid: make([]int64, 0),
 	}
 
 	// operates files first

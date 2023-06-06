@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -27,6 +28,12 @@ type ToPostgres struct {
 const (
 	useridkey = `usersids`
 )
+
+const registerChanges = `
+INSERT INTO itemkeeper_changes(userid, itemid, fileid, updateded_at)
+VALUES ($1, $2, $3, NOW())
+RETURNING id
+;`
 
 func shifu(a int) (string, error) {
 	key := sha256.Sum256([]byte(useridkey))
@@ -57,10 +64,11 @@ func (postg *ToPostgres) RegUser(ctx context.Context) error {
 	regUser := `
 		INSERT INTO itemkeeper_users(login, password, created_at)
 		VALUES ($1, $2, NOW())
-		ON CONFLICT (login)
-		DO NOTHING
 		RETURNING id
 	;`
+
+	// ON CONFLICT (login)
+	// DO NOTHING
 
 	regUserSetID := `
 	UPDATE itemkeeper_users
@@ -77,16 +85,26 @@ func (postg *ToPostgres) RegUser(ctx context.Context) error {
 
 	// _, er := tx.Exec(ctx, regUser, postg.Data.User.Login, postg.Data.User.Password, postg.Data.User.UserID)
 	if er != nil {
+		log.Println("WOW err:", er)
 		errortext := er.Error()
+
 		if errortext[len(errortext)-6:len(errortext)-1] == "23505" {
+			log.Println("user exists")
 			return ErrUserExists
 		}
-		err := tx.Rollback(ctx)
-		if err != nil {
-			log.Println("regUser: Rollback err:", err)
-			return err
+
+		// no rows returned, its OK, But if othr error then rollback
+		if !errors.Is(er, pgx.ErrNoRows) {
+			log.Println("PG reg err:", er)
+
+			err := tx.Rollback(ctx)
+			if err != nil {
+				log.Println("regUser: Rollback err:", err)
+				return err
+			}
+
+			return er
 		}
-		return er
 	}
 
 	// generate UserID
@@ -108,6 +126,7 @@ func (postg *ToPostgres) RegUser(ctx context.Context) error {
 			log.Println("regUser update: Rollback err:", err)
 			return err
 		}
+		log.Println("PG reg EXEC:", er)
 		return er
 	}
 
@@ -155,79 +174,232 @@ func (postg *ToPostgres) AuthUser(ctx context.Context) error {
 		log.Println("postgres GET err: ", err)
 		return fmt.Errorf("storage BD err:%v", err)
 	}
-	return err
 }
 
 func (postg *ToPostgres) PutItems(ctx context.Context) error {
-	// 	// error if empty
-	// 	if len(postg.Data.List) == 0 {
-	// 		return ErrEmptyRequest
-	// 	}
-	// 	id serial primary key,
-	// 	userid TEXT not null,
-	// 	body TEXT,
-	// 	files TEXT[],
-	// 	deleted BOOLEAN,
-	// 	uploaded_at TIMESTAMPTZ DEFAULT Now()
+	// error if empty
+	if len(postg.Data.List) == 0 {
+		return ErrEmptyRequest
+	}
+	// id serial primary key,
+	// userid TEXT not null,
+	// body TEXT,
+	// files TEXT[],
+	// deleted BOOLEAN,
+	// uploaded_at TIMESTAMPTZ DEFAULT Now()
 
-	// 	// write to postgres
-	// 	putItem := `
-	// 		INSERT INTO itemkeeper_items(userid, body, deleted)
-	// 		VALUES ($1, $2, FALSE)
-	// 	;`
+	// write to postgres
+	putItem := `
+			INSERT INTO itemkeeper_items(userid, body, deleted)
+			VALUES ($1, $2, FALSE)
+			RETURNING id
+		;`
 
-	// 	updateItem := `
-	// 		UPDATE itemkeeper_items
-	// 		SET body = $1, deleted = $3
-	// 		WHERE id = $4
-	// 	;`
+	updateItem := `
+			UPDATE itemkeeper_items
+			SET body = $1, deleted = $2
+			WHERE id = $3
+		;`
 
-	// 	tx, err := db.Begin(ctx)
-	// 	if err != nil {
-	// 		log.Println("1: begin error:", err)
-	// 	}
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		log.Println("1: begin error:", err)
+	}
 
-	// 	// for all items
-	// for i, item := range postg.Data.List {
-	// 	// != 0 means update
-	// 	if item.ItemID != 0 {
-	// 		_, er := tx.Exec(ctx, updateItem, item.Body, item.Deleted, item.ItemID)
-	// 		if er != nil {
-	// 			// if error (probably id not existed) try to save as new
-	// 			_, er := tx.Exec(ctx, putItem, item.UserID, item.Body)
-	// 			if er != nil {
-	// 				// erase ItemID to mark itemn as error one
-	// 				postg.Data.List[i] = 0
-	// 			}
-	// 		}
-	// 	}
-	// }
-	// 	_, er := tx.Exec(ctx, sqlPost, postg.Link.UserID, postg.Link.Alias, postg.Link.Original)
-	// 	if er != nil {
-	// 		errortext := er.Error()
-	// 		if errortext[len(errortext)-6:len(errortext)-1] == "23505" {
-	// 			postg.Link.Err = ErrConflictAlias
-	// 			log.Println("PG POST alias exists: error 23505; new alias again..")
-	// 			return
-	// 		}
-	// 		err := tx.Rollback(ctx)
-	// 		if err != nil {
-	// 			log.Println("error witn Rollback:", err)
-	// 		}
-	// 	}
+	// for all items
+	for i, item := range postg.Data.List {
+		// Update != 0 means update
+		if item.ItemID != 0 {
+			_, er := tx.Exec(ctx, updateItem, item.Body, item.Deleted, item.ItemID)
+			if er == nil {
+				continue // updated and go to next item
+			}
+			log.Println("PG update error:", er)
+			// if err we try to save item as new, coz may be wrong itemid (or bad idea?)
+		}
 
-	// 	err = tx.Commit(ctx)
-	// 	if err != nil {
-	// 		log.Println("3: commit err: ", err)
-	// 	}
+		// add new item
+		var id int64
+		err := tx.QueryRow(ctx, putItem, item.UserID, item.Body).Scan(&id)
+		if err != nil {
+			// erase ItemID to mark itemn as error one
+			postg.Data.List[i].ItemID = 0
+			log.Println("PG put item error:", err)
+			continue
+		}
+		postg.Data.List[i].ItemID = id
+
+		// register changes
+		var changesid int64
+		err = tx.QueryRow(ctx, registerChanges, item.UserID, 0, id).Scan(&changesid)
+		if err != nil {
+			// erase ItemID to mark itemn as error one
+			postg.Data.List[i].ItemID = 0
+			log.Println("PG put item (changes log) error:", err)
+			continue
+		}
+		logNewChange(item.UserID, id, 0, changesid) // go?
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		log.Println("PG commit err: ", err)
+		for i := range postg.Data.List {
+			postg.Data.List[i].ItemID = 0
+			// nothing were saved
+			return fmt.Errorf("internal database error:%v", err)
+		}
+	}
 	return nil
 }
 
+// UploadFile register file in table, returns go to save file somewhere, then update itemtable and changes
 func (postg *ToPostgres) UploadFile(ctx context.Context) error {
+	log.Println("file upload:", postg.Data.File.ItemID)
+	// check body
+	if len(postg.Data.File.Body) == 0 {
+		return fmt.Errorf("empty file.Body in request uploadFile: %s", postg.Data.File.FileID)
+	}
+
+	// write to postgres
+	putFile := `
+			INSERT INTO itemkeeper_files(userid, itemid, deleted)
+			VALUES ($1, $2, FALSE)
+			RETURNING id
+		;`
+
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		log.Println("1: begin error:", err)
+	}
+
+	var id int64
+	err = tx.QueryRow(ctx, putFile, postg.Data.File.UserID, postg.Data.File.ItemID).Scan(&id)
+	// _, er := tx.Exec(ctx, putFile, postg.Data.File.UserID, postg.Data.File.ItemID, false)
+	if err != nil {
+		log.Println("PG putFile error:", err)
+		er := tx.Rollback(ctx)
+		if er != nil {
+			log.Println("PG putFile Rollback err:", err)
+			return er
+		}
+		return err
+	}
+
+	// register changes
+	var changesid int64
+	err = tx.QueryRow(ctx, registerChanges, postg.Data.File.UserID, postg.Data.File.ItemID, id).Scan(&changesid)
+	if err != nil {
+		log.Println("PG upload file (changes log) error:", err)
+		er := tx.Rollback(ctx)
+		if er != nil {
+			log.Println("PG putFile Rollback err:", err)
+			return er
+		}
+		return err
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		log.Println("PG commit err: ", err)
+		for i := range postg.Data.List {
+			postg.Data.List[i].ItemID = 0
+			// nothing were saved
+			return fmt.Errorf("internal database error:%v", err)
+		}
+	}
+
+	// add logs to RAM
+	logNewChange(postg.Data.File.UserID, postg.Data.File.ItemID, id, changesid) // go?
+
+	// send file to storage
+	go fileUploadToFileStorage(id, &postg.Data.File)
+
 	return nil
 }
 
 func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
+	log.Println("lastupdate requested:", postg.Data.User.LastUpdate)
+	postg.Data.List = postg.Data.List[:0]
+	postg.Data.FilesNoBody = postg.Data.FilesNoBody[:0]
+
+	// get last update
+	getLastUpdate := `
+		SELECT MAX(id) FROM itemkeeper_changes
+			;`
+
+	// get items
+	getItemsUpdated := `
+	SELECT id, userid, deleted FROM itemkeeper_items
+	WHERE id IN(
+	  SELECT itemid FROM itemkeeper_changes 
+	  WHERE id > $1
+	)
+		;`
+
+	// get files
+	getFilesUpdated := `
+	SELECT id, userid, deleted FROM itemkeeper_files
+	WHERE id IN(
+	  SELECT itemid FROM itemkeeper_changes 
+	  WHERE id > $1
+	)
+		;`
+
+	// get last update
+	var lu int64
+	err := db.QueryRow(ctx, getLastUpdate).Scan(&lu)
+	switch err {
+	case nil:
+	case pgx.ErrNoRows:
+		log.Println("empty list of changes")
+		return nil
+	default:
+		log.Println("postgres GET err: ", err)
+		return fmt.Errorf("storage BD err:%v", err)
+	}
+
+	// items query
+	rows, err := db.Query(ctx, getItemsUpdated, postg.Data.User.LastUpdate)
+	switch err {
+	case nil:
+	case pgx.ErrNoRows:
+		log.Println("item list is up to date for user", postg.Data.User.UserID)
+	default:
+		log.Println("postgres GET err: ", err)
+		return fmt.Errorf("storage BD err:%v", err)
+	}
+
+	for rows.Next() {
+		var newitem = Item{}
+		err := rows.Scan(&newitem.ItemID, &newitem.UserID, &newitem.Deleted)
+		if err != nil {
+			return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
+		}
+		postg.Data.List = append(postg.Data.List, newitem)
+	}
+
+	// files query
+	rows, err = db.Query(ctx, getFilesUpdated, postg.Data.User.LastUpdate)
+	switch err {
+	case nil:
+	case pgx.ErrNoRows:
+		log.Println("files list is up to date for user", postg.Data.User.UserID)
+	default:
+		log.Println("postgres GET err: ", err)
+		return fmt.Errorf("storage BD err:%v", err)
+	}
+
+	for rows.Next() {
+		var newfile = File{}
+		err := rows.Scan(&newfile.FileID, &newfile.UserID, &newfile.UserID, &newfile.Deleted)
+		if err != nil {
+			return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
+		}
+		postg.Data.FilesNoBody = append(postg.Data.FilesNoBody, newfile)
+	}
+
+	postg.Data.User.LastUpdate = lu
 	return nil
 }
 
@@ -278,7 +450,6 @@ func (postg *ToPostgres) Connect(ctx context.Context) error {
 			CREATE TABLE IF NOT EXISTS itemkeeper_items(
 				id serial primary key,
 			  userid TEXT not null,
-			  itemid TEXT not null,
 			  body TEXT,
 			  files TEXT[],
 			  deleted BOOLEAN,
@@ -295,8 +466,8 @@ func (postg *ToPostgres) Connect(ctx context.Context) error {
 		CREATE TABLE IF NOT EXISTS itemkeeper_files(
 			id serial primary key,
 			userid TEXT not null,
-			itemid TEXT not null,
-			fileid TEXT not null,
+			itemid BIGINT not null,
+			fileid BIGINT not null,
 			deleted BOOLEAN,
 			uploaded_at TIMESTAMPTZ DEFAULT Now()
 		);
@@ -305,14 +476,15 @@ func (postg *ToPostgres) Connect(ctx context.Context) error {
 	if err != nil {
 		log.Println("error in create table users:", err)
 	}
-	return err
 
-	// files table
+	// changes table
 	var changes = `
 		CREATE TABLE IF NOT EXISTS itemkeeper_changes(
 			id serial primary key,
-			itemid TEXT not null,
-			updateded_at BIGINT not nill,
+			userid TEXT not null,
+			itemid BIGINT not null,
+			fileid BIGINT,
+			updateded_at TIMESTAMPTZ DEFAULT Now()
 		);
 	  `
 	_, err = db.Exec(ctx, changes)

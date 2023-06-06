@@ -47,7 +47,7 @@ func RegUser(ctx context.Context, login, password string) error {
 	if err != nil {
 		if e, ok := status.FromError(err); ok {
 			if e.Code() == codes.AlreadyExists {
-				return fmt.Errorf(`wrong Login:%v`, e.Message())
+				return fmt.Errorf(`user exists:%v`, e.Message())
 			} else {
 				return fmt.Errorf(`regUser:%v:%v`, e.Code(), e.Message())
 			}

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/sha1"
-	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -32,7 +31,7 @@ var (
 	mu    = sync.Mutex{}
 	Users = map[string]*User{} // key= login
 	Items = map[int64]*Item{}  // key = ItemID
-	Files = map[string]*File{} // key = FileID
+	Files = map[int64]*File{}  // key = FileID
 )
 
 // log of changes
@@ -80,7 +79,7 @@ func (mock *ToMock) AuthUser(ctx context.Context) error {
 	}
 
 	if user.Password != mock.Data.User.Password {
-		log.Println("wrong password")
+		// log.Println("wrong password")
 		return ErrPasswordWrong
 	}
 
@@ -136,7 +135,7 @@ func (mock *ToMock) PutItems(ctx context.Context) error {
 		// keep old files ids if exists
 		if _, ok := Items[item.ItemID]; ok {
 			olditemFiles := Items[item.ItemID].FilesID
-			item.FilesID = make([]string, len(olditemFiles))
+			item.FilesID = make([]int64, len(olditemFiles))
 			copy(item.FilesID, olditemFiles)
 		}
 
@@ -161,15 +160,16 @@ func logToListOfChanges(userid string, itemid int64) {
 
 // UploadFile accepts file, save it in storage and
 func (mock *ToMock) UploadFile(ctx context.Context) error {
-
+	log.Println("file upload:", mock.Data.File.ItemID)
 	// check body
 	if len(mock.Data.File.Body) == 0 {
-		return fmt.Errorf("empty file.Body in request uploadFile: %s", mock.Data.File.FileID)
+		return fmt.Errorf("empty file.Body in request uploadFile: %d", mock.Data.File.FileID)
 	}
 
 	// generates file ID
-	sum := sha256.Sum256([]byte(mock.Data.File.FileID + strconv.FormatInt(time.Now().UnixNano(), 16)))
-	mock.Data.File.FileID = hex.EncodeToString(sum[:])
+	// sum := sha256.Sum256([]byte(mock.Data.File.FileID + strconv.FormatInt(time.Now().UnixNano(), 16)))
+	// mock.Data.File.FileID = hex.EncodeToString(sum[:])
+	mock.Data.File.FileID = time.Now().UnixNano()
 
 	// check for doubles
 	err := checkForDoublesFileID(mock.Data.File.FileID)
@@ -188,7 +188,7 @@ func (mock *ToMock) UploadFile(ctx context.Context) error {
 	}
 
 	// write file
-	path = filepath.Join(path, mock.Data.File.FileID)
+	path = filepath.Join(path, strconv.FormatInt(mock.Data.File.FileID, 10))
 	err = os.WriteFile(path, mock.Data.File.Body, 0644)
 	if err != nil {
 		return fmt.Errorf("write file %s error:%v", path, err)
@@ -205,7 +205,7 @@ func (mock *ToMock) UploadFile(ctx context.Context) error {
 	return err
 }
 
-func checkForDoublesFileID(fileid string) error {
+func checkForDoublesFileID(fileid int64) error {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -287,7 +287,7 @@ func returnItemsByIDs(itemsids ...int64) []Item {
 			ItemID:  itm.ItemID,
 			UserID:  itm.UserID,
 			Body:    itm.Body,
-			FilesID: make([]string, len(itm.FilesID)),
+			FilesID: make([]int64, len(itm.FilesID)),
 			Deleted: itm.Deleted,
 		}
 

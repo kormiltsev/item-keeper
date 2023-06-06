@@ -16,7 +16,7 @@ type List struct {
 	UserID     string
 	mu         sync.Mutex
 	Items      map[int64]*Item    // key = itemid
-	Files      map[string]*File   // key = fileid
+	Files      map[int64]*File    // key = fileid
 	parameters map[string][]int64 // only for search and display; key = param.name
 }
 
@@ -25,7 +25,7 @@ var Catalog = List{
 	UserID:     "AppUser",
 	mu:         sync.Mutex{},
 	Items:      map[int64]*Item{},
-	Files:      map[string]*File{},
+	Files:      map[int64]*File{},
 	parameters: map[string][]int64{},
 }
 
@@ -54,7 +54,7 @@ func NewUser(userid string, lastUpdate int64) {
 	Catalog.LastUpdate = lastUpdate
 	Catalog.UserID = userid
 	Catalog.Items = map[int64]*Item{}
-	Catalog.Files = map[string]*File{} // need to delete files
+	Catalog.Files = map[int64]*File{} // need to delete files
 	Catalog.parameters = map[string][]int64{}
 
 	//erase file storage
@@ -67,7 +67,7 @@ func NewItem(userid string) *Item {
 	return &Item{
 		UserID:        userid,
 		Parameters:    make([]Parameter, 0),
-		FileIDs:       make([]string, 0),
+		FileIDs:       make([]int64, 0),
 		UploadAddress: make([]string, 0),
 	}
 }
@@ -166,6 +166,19 @@ func (op *Operator) addFilesAddresses(itemid int64) []string {
 		answer = append(answer, file.Address)
 	}
 	return answer
+}
+
+func (op *Operator) RegisterFilesToItems(files ...File) error {
+	op.Mapa.mu.Lock()
+	defer op.Mapa.mu.Unlock()
+
+	Catalog.LastUpdate = op.LastUpdate
+
+	for _, fle := range files {
+		// add file id to item in catalog
+		op.Mapa.Items[fle.ItemID].FileIDs = append(op.Mapa.Items[fle.ItemID].FileIDs, fle.FileID)
+	}
+	return nil
 }
 
 // func ReturnIDs() []int64 {

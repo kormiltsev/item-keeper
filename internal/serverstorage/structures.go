@@ -6,16 +6,17 @@ type Item struct {
 	ItemID  int64
 	UserID  string
 	Body    string
-	FilesID []string
+	FilesID []int64
 	Deleted bool
 }
 
 type File struct {
-	FileID  string
+	FileID  int64
 	UserID  string
 	ItemID  int64
 	Address string
 	Body    []byte
+	Deleted bool
 }
 
 type User struct {
