@@ -1,6 +1,7 @@
 package serverstorage
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"os"
@@ -40,6 +41,42 @@ func fileUploadToFileStorageLocal(id int64, file *File) error {
 		return fmt.Errorf("write file %s error:%v", path, err)
 	}
 	return nil
+}
+
+func fileDownloadFromStorage(file *File) ([]byte, error) {
+	// storage switcher add here
+	//
+	// ==========================
+
+	// if local file server
+	// create path localstorage/userid/itemid
+	path := filepath.Join(storageaddress, file.UserID)
+	path = filepath.Join(path, strconv.FormatInt(file.ItemID, 10))
+	path = filepath.Join(path, strconv.FormatInt(file.FileID, 10))
+
+	return readFileLocal(path)
+}
+
+func readFileLocal(fileaddress string) ([]byte, error) {
+	file, err := os.Open(fileaddress)
+
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	stats, statsErr := file.Stat()
+	if statsErr != nil {
+		return nil, statsErr
+	}
+
+	var size int64 = stats.Size()
+	bytes := make([]byte, size)
+
+	bufr := bufio.NewReader(file)
+	_, err = bufr.Read(bytes)
+
+	return bytes, err
 }
 
 func deleteFilesByItemID(userid string, itemid int64) error {

@@ -222,7 +222,7 @@ func UpdateDataFromServer(ctx context.Context) error {
 
 	if len(response.Item) == 0 {
 		if response.Lastupdate > currentlastupdate {
-			log.Println("response empty, but lastupdate date different")
+			log.Printf("response empty, but lastupdate date different:%d>%d\n", response.Lastupdate, currentlastupdate)
 			return fmt.Errorf("last update not equal, but no items resieved")
 		}
 		log.Println("response empty, looks like everithing updated")
@@ -260,6 +260,11 @@ func UpdateDataFromServer(ctx context.Context) error {
 		}
 
 		// decode to local item struct
+		if len(itm.Body) == 0 {
+			log.Println("update.response empty item.body")
+			return fmt.Errorf("update.response empty item.body")
+		}
+
 		newitem, err := appstorage.Decode(itm.Body, currentuserencryptokey)
 		if err != nil {
 			log.Println("error on decoding:", err)

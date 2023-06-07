@@ -29,11 +29,17 @@ const (
 	useridkey = `usersids`
 )
 
-const registerChanges = `
+const (
+	registerChanges = `
 INSERT INTO itemkeeper_changes(userid, itemid, fileid, updateded_at)
 VALUES ($1, $2, $3, NOW())
 RETURNING id
 ;`
+	// get last update
+	getLastUpdate = `
+		SELECT COALESCE(MAX(id),0) FROM itemkeeper_changes
+			;`
+)
 
 func shifu(a int) (string, error) {
 	key := sha256.Sum256([]byte(useridkey))
@@ -85,7 +91,6 @@ func (postg *ToPostgres) RegUser(ctx context.Context) error {
 
 	// _, er := tx.Exec(ctx, regUser, postg.Data.User.Login, postg.Data.User.Password, postg.Data.User.UserID)
 	if er != nil {
-		log.Println("WOW err:", er)
 		errortext := er.Error()
 
 		if errortext[len(errortext)-6:len(errortext)-1] == "23505" {
@@ -136,8 +141,15 @@ func (postg *ToPostgres) RegUser(ctx context.Context) error {
 		return err
 	}
 
-	// send to client current server time
-	postg.Data.User.LastUpdate = time.Now().UnixMilli()
+	// get last update
+	err = db.QueryRow(ctx, getLastUpdate).Scan(&postg.Data.User.LastUpdate)
+	if err != nil {
+		log.Println("postgres Last update err: ", err)
+		return fmt.Errorf("storage BD err:%v", err)
+	}
+
+	// // send to client current server time
+	// postg.Data.User.LastUpdate = lu
 
 	return nil
 }
@@ -231,7 +243,7 @@ func (postg *ToPostgres) PutItems(ctx context.Context) error {
 
 		// register changes
 		var changesid int64
-		err = tx.QueryRow(ctx, registerChanges, item.UserID, 0, id).Scan(&changesid)
+		err = tx.QueryRow(ctx, registerChanges, item.UserID, id, 0).Scan(&changesid)
 		if err != nil {
 			// erase ItemID to mark itemn as error one
 			postg.Data.List[i].ItemID = 0
@@ -258,7 +270,7 @@ func (postg *ToPostgres) UploadFile(ctx context.Context) error {
 	log.Println("file upload:", postg.Data.File.ItemID)
 	// check body
 	if len(postg.Data.File.Body) == 0 {
-		return fmt.Errorf("empty file.Body in request uploadFile: %s", postg.Data.File.FileID)
+		return fmt.Errorf("empty file.Body in request uploadFile: %d", postg.Data.File.FileID)
 	}
 
 	// write to postgres
@@ -323,14 +335,9 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 	postg.Data.List = postg.Data.List[:0]
 	postg.Data.FilesNoBody = postg.Data.FilesNoBody[:0]
 
-	// get last update
-	getLastUpdate := `
-		SELECT MAX(id) FROM itemkeeper_changes
-			;`
-
 	// get items
 	getItemsUpdated := `
-	SELECT id, userid, deleted FROM itemkeeper_items
+	SELECT id, userid, body, deleted FROM itemkeeper_items
 	WHERE id IN(
 	  SELECT itemid FROM itemkeeper_changes 
 	  WHERE id > $1
@@ -339,7 +346,7 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 
 	// get files
 	getFilesUpdated := `
-	SELECT id, userid, deleted FROM itemkeeper_files
+	SELECT id, userid, itemid, deleted FROM itemkeeper_files
 	WHERE id IN(
 	  SELECT itemid FROM itemkeeper_changes 
 	  WHERE id > $1
@@ -349,13 +356,8 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 	// get last update
 	var lu int64
 	err := db.QueryRow(ctx, getLastUpdate).Scan(&lu)
-	switch err {
-	case nil:
-	case pgx.ErrNoRows:
-		log.Println("empty list of changes")
-		return nil
-	default:
-		log.Println("postgres GET err: ", err)
+	if err != nil {
+		log.Println("postgres Last update err: ", err)
 		return fmt.Errorf("storage BD err:%v", err)
 	}
 
@@ -366,13 +368,13 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 	case pgx.ErrNoRows:
 		log.Println("item list is up to date for user", postg.Data.User.UserID)
 	default:
-		log.Println("postgres GET err: ", err)
+		log.Println("postgres getItemsUpdated err: ", err)
 		return fmt.Errorf("storage BD err:%v", err)
 	}
 
 	for rows.Next() {
 		var newitem = Item{}
-		err := rows.Scan(&newitem.ItemID, &newitem.UserID, &newitem.Deleted)
+		err := rows.Scan(&newitem.ItemID, &newitem.UserID, &newitem.Body, &newitem.Deleted)
 		if err != nil {
 			return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
 		}
@@ -386,13 +388,13 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 	case pgx.ErrNoRows:
 		log.Println("files list is up to date for user", postg.Data.User.UserID)
 	default:
-		log.Println("postgres GET err: ", err)
+		log.Println("postgres getFilesUpdated err: ", err)
 		return fmt.Errorf("storage BD err:%v", err)
 	}
 
 	for rows.Next() {
 		var newfile = File{}
-		err := rows.Scan(&newfile.FileID, &newfile.UserID, &newfile.UserID, &newfile.Deleted)
+		err := rows.Scan(&newfile.FileID, &newfile.UserID, &newfile.ItemID, &newfile.Deleted)
 		if err != nil {
 			return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
 		}
@@ -404,7 +406,36 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 }
 
 func (postg *ToPostgres) GetFileByFileID(ctx context.Context) error {
-	return nil
+	getFile := `
+	SELECT id, userid, itemid, deleted FROM itemkeeper_files
+	WHERE id = $1
+		;`
+
+	// get last update
+	var fileNoBody = File{}
+	err := db.QueryRow(ctx, getFile, postg.Data.File.FileID).Scan(&fileNoBody.FileID, &fileNoBody.UserID, &fileNoBody.ItemID, &fileNoBody.Deleted)
+	switch err {
+	case nil:
+	case pgx.ErrNoRows:
+		log.Println("file not found in DB")
+		return ErrItemNotFound
+	default:
+		log.Println("postgres GET file by id err: ", err)
+		return fmt.Errorf("storage BD err:%v", err)
+	}
+
+	if postg.Data.File.FileID == fileNoBody.FileID && postg.Data.File.UserID == fileNoBody.UserID {
+		postg.Data.File.Body, err = fileDownloadFromStorage(&fileNoBody)
+		if err != nil {
+			log.Println("fileDownloadFromStorage error: ", err)
+			return ErrItemNotFound
+		}
+		// add itemId, coze itemId is not mandatory in request
+		postg.Data.File.ItemID = fileNoBody.ItemID
+		return nil
+	}
+
+	return ErrItemNotFound
 }
 
 func (postg *ToPostgres) DeleteItems(ctx context.Context) error {
@@ -467,7 +498,7 @@ func (postg *ToPostgres) Connect(ctx context.Context) error {
 			id serial primary key,
 			userid TEXT not null,
 			itemid BIGINT not null,
-			fileid BIGINT not null,
+			fileid BIGINT,
 			deleted BOOLEAN,
 			uploaded_at TIMESTAMPTZ DEFAULT Now()
 		);
