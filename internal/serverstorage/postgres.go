@@ -37,8 +37,15 @@ RETURNING id
 ;`
 	// get last update
 	getLastUpdate = `
-		SELECT COALESCE(MAX(id),0) FROM itemkeeper_changes
-			;`
+SELECT COALESCE(MAX(id),0) FROM itemkeeper_changes
+;`
+
+	// rewrite body
+	updateItem = `
+UPDATE itemkeeper_items
+SET body = $1, deleted = $2
+WHERE id = $3
+		;`
 )
 
 func shifu(a int) (string, error) {
@@ -205,12 +212,6 @@ func (postg *ToPostgres) PutItems(ctx context.Context) error {
 			INSERT INTO itemkeeper_items(userid, body, deleted)
 			VALUES ($1, $2, FALSE)
 			RETURNING id
-		;`
-
-	updateItem := `
-			UPDATE itemkeeper_items
-			SET body = $1, deleted = $2
-			WHERE id = $3
 		;`
 
 	tx, err := db.Begin(ctx)
@@ -439,6 +440,164 @@ func (postg *ToPostgres) GetFileByFileID(ctx context.Context) error {
 }
 
 func (postg *ToPostgres) DeleteItems(ctx context.Context) error {
+	// delete items
+	if len(postg.Data.List) == 0 {
+		return ErrEmptyRequest
+	}
+
+	// delete if contain some
+	postg.Data.FilesNoBody = postg.Data.FilesNoBody[:0]
+
+	// delete item
+	deleteItem := `
+	UPDATE itemkeeper_items
+	SET deleted = TRUE
+	WHERE id = $1 AND userid = $2
+			;`
+
+	// delete file
+	deleteFile := `
+			SELECT id, userid, itemid FROM itemkeeper_files
+			WHERE itemid = $1 AND userid = $2
+			;
+	UPDATE itemkeeper_files
+	SET deleted = TRUE
+	WHERE itemid = $3 AND userid = $4
+			;`
+
+	// delete file by fileid
+	deleteFileByID := `
+	SELECT id, userid, itemid FROM itemkeeper_files
+	WHERE id = $1 AND userid = $2
+	;
+UPDATE itemkeeper_files
+SET deleted = TRUE
+WHERE id = $3 AND userid = $4
+	;`
+
+	getItem := `
+	SELECT deleted FROM itemkeeper_items
+	WHERE id = $1 AND userid = $2
+		;`
+
+	getFile := `
+		SELECT deleted FROM itemkeeper_files
+		WHERE itemid = $1 AND userid = $2
+			;`
+
+	getFileByID := `
+			SELECT deleted FROM itemkeeper_files
+			WHERE id = $1 AND userid = $2
+				;`
+
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		log.Println("tx delete: begin error:", err)
+	}
+
+	for _, itemtodelete := range postg.Data.List {
+		if itemtodelete.ItemID == 0 && len(itemtodelete.FilesID) == 0 {
+			// empty request, doing next item
+			continue
+		}
+
+		// if there is file id so need to delete onli this file (don't delete item)
+		for _, fileIDToDelete := range itemtodelete.FilesID {
+
+			// delete item
+			rows, err := tx.Query(ctx, deleteFileByID, fileIDToDelete, itemtodelete.UserID, fileIDToDelete, itemtodelete.UserID)
+			switch err {
+			case nil:
+			case pgx.ErrNoRows:
+				log.Println("deleteItem item not found to delete", itemtodelete.ItemID)
+			default:
+				// try to get file with error
+				var deleted bool
+				err = tx.QueryRow(ctx, getFileByID, fileIDToDelete, itemtodelete.UserID).Scan(&deleted)
+				if err == nil && !deleted {
+					log.Println("deletion error but file exists")
+					er := tx.Rollback(ctx)
+					if er != nil {
+						log.Println("deleteFile and query Rollback err:", er)
+						return er
+					}
+					log.Println("PG deletion file error:", err)
+					return err
+				}
+				// if file not found of mark 'deleted' so ok, move next
+			}
+
+			for rows.Next() {
+				var newfile = File{}
+				err := rows.Scan(&newfile.FileID, &newfile.UserID, &newfile.ItemID)
+				if err != nil {
+					return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
+				}
+				postg.Data.FilesNoBody = append(postg.Data.FilesNoBody, newfile)
+			}
+
+		}
+		// delete item
+		_, err := tx.Exec(ctx, deleteItem, itemtodelete.ItemID, itemtodelete.UserID)
+		if err != nil {
+
+			// try to get item with error
+			var deleted bool
+			err := tx.QueryRow(ctx, getItem, itemtodelete.ItemID, itemtodelete.UserID).Scan(&deleted)
+			if err == nil && !deleted {
+				log.Println("deletion error but item exists")
+				er := tx.Rollback(ctx)
+				if er != nil {
+					log.Println("deleteItem and query Rollback err:", er)
+					return er
+				}
+				log.Println("PG deletion error:", err)
+				return err
+			}
+		}
+
+		// delete item
+		rows, err := tx.Query(ctx, deleteFile, itemtodelete.ItemID, itemtodelete.UserID, itemtodelete.ItemID, itemtodelete.UserID)
+		switch err {
+		case nil:
+		case pgx.ErrNoRows:
+			log.Println("deleteItem item not found to delete", itemtodelete.ItemID)
+		default:
+			// try to get file with error
+			var deleted bool
+			err = tx.QueryRow(ctx, getFile, itemtodelete.ItemID, itemtodelete.UserID).Scan(&deleted)
+			if err == nil && !deleted {
+				log.Println("deletion error but file exists")
+				er := tx.Rollback(ctx)
+				if er != nil {
+					log.Println("deleteFile and query Rollback err:", er)
+					return er
+				}
+				log.Println("PG deletion file error:", err)
+				return err
+			}
+			// if file not found of mark 'deleted' so ok, move next
+		}
+
+		for rows.Next() {
+			var newfile = File{}
+			err := rows.Scan(&newfile.FileID, &newfile.UserID, &newfile.ItemID)
+			if err != nil {
+				return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
+			}
+			postg.Data.FilesNoBody = append(postg.Data.FilesNoBody, newfile)
+		}
+
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		log.Println("regUser: commit err: ", err)
+		return err
+	}
+
+	go deleteFilesByID(postg.Data)
+
 	return nil
 }
 

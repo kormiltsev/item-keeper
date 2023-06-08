@@ -439,8 +439,16 @@ func DeleteItems(ctx context.Context, itemids []int64) ([]int64, error) {
 
 	// run request
 	response, err := cl.DeleteEntity(cc.Ctx, &req)
-	if len(response.Itemid) == 0 && err != nil {
+	if len(response.Itemid) == 0 && len(response.Fileid) == 0 && err != nil {
 		return nil, fmt.Errorf("no error items returned, but error:%v", err)
+	}
+
+	// Need to retry or just inform user about error with deletion?
+	for _, itemIDNotDeleted := range response.Itemid {
+		log.Println("ITEM not deleted:", itemIDNotDeleted)
+	}
+	for _, fileIDNotDeleted := range response.Fileid {
+		log.Println("FILE not deleted:", fileIDNotDeleted)
 	}
 
 	// upload new status from server

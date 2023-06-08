@@ -73,12 +73,12 @@ message UploadFileRequest {
  }
 
  message DeleteEntityRequest {
-	repeated string userid = 1;
+	string userid = 1;
 	repeated int64 itemid = 2;
 	repeated int64 fileid = 3; 
 }
  message DeleteEntityResponse {
-	repeated string userid = 1;
+	string userid = 1;
 	repeated int64 itemid = 2;
 	repeated int64 fileid = 3; 
  }

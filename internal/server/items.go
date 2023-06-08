@@ -182,46 +182,47 @@ func (itemserv *ItemServer) GetFileByFileID(ctx context.Context, in *pb.GetFileB
 	return &response, nil
 }
 
-// RegUser returns new user's id
+// RegUser returns
 func (itemserv *ItemServer) DeleteEntity(ctx context.Context, in *pb.DeleteEntityRequest) (*pb.DeleteEntityResponse, error) {
 
 	// create response
 	var response = pb.DeleteEntityResponse{
-		Userid: make([]string, 0),
+		Userid: in.Userid,
 		Itemid: make([]int64, 0),
 		Fileid: make([]int64, 0),
 	}
 
 	// operates files first
-	for _, fileid := range in.Fileid {
-		serverfile := serverstorage.NewFile()
-		serverfile.FileID = fileid
+	serveritem := serverstorage.NewItem()
+	serveritem.UserID = in.Userid
+	serveritem.FilesID = make([]int64, len(in.Fileid))
+	copy(serveritem.FilesID, in.Fileid)
 
-		// prepare to server
-		tostor := serverstorage.NewToStorage()
-		tostor.File = *serverfile
+	// prepare to server
+	tostor := serverstorage.NewToStorage()
+	tostor.List = append(tostor.List, *serveritem)
 
-		tostor.DB = serverstorage.NewStorager(tostor)
+	// tostor.DB = serverstorage.NewStorager(tostor)
 
-		// to server
-		err := tostor.DB.DeleteFile(ctx)
-		if err != nil {
-			if errors.Is(err, serverstorage.ErrItemNotFound) {
-				log.Println("file not found, skipped fileid:", fileid)
-				continue
-			}
-			// return error
-			response.Fileid = append(response.Fileid, tostor.File.FileID)
-			log.Println("error delete file:", fileid)
-		}
-	}
+	// // to server
+	// err := tostor.DB.DeleteFile(ctx)
+	// if err != nil {
+	// 	if errors.Is(err, serverstorage.ErrItemNotFound) {
+	// 		log.Println("file not found, skipped fileid:", fileid)
+	// 		continue
+	// 	}
+	// 	// return error
+	// 	response.Fileid = append(response.Fileid, tostor.File.FileID)
+	// 	log.Println("error delete file:", fileid)
+	// }
 
 	// operates items then
-	tostor := serverstorage.NewToStorage()
+	// tostor := serverstorage.NewToStorage()
 
 	// for every itemid from request
 	for _, itemid := range in.Itemid {
 		serveritem := serverstorage.NewItem()
+		serveritem.UserID = in.Userid
 		serveritem.ItemID = itemid
 		tostor.List = append(tostor.List, *serveritem)
 	}
@@ -234,13 +235,18 @@ func (itemserv *ItemServer) DeleteEntity(ctx context.Context, in *pb.DeleteEntit
 	if err != nil {
 		// return error?
 		log.Println("error delete items:", err)
+		return nil, status.Errorf(codes.Internal, `can't delete`)
 	}
 
-	for _, item := range tostor.List {
-		if item.ItemID != 0 {
-			response.Itemid = append(response.Itemid, item.ItemID)
-		}
-	}
+	// deletion in postgres will updated using lastupdate. Files will deleted from storage using goroutines with no alerting
+	// for _, item := range tostor.List {
+	// 	if item.ItemID != 0 {
+	// 		response.Itemid = append(response.Itemid, item.ItemID)
+	// 	}
+	// 	if len(item.FilesID) != 0 {
+	// 		response.Fileid = append(response.Fileid, item.FilesID...)
+	// 	}
+	// }
 
 	return &response, nil
 }
