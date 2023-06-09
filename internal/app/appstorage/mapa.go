@@ -176,7 +176,10 @@ func (op *Operator) RegisterFilesToItems(files ...File) error {
 
 	for _, fle := range files {
 		// add file id to item in catalog
-		op.Mapa.Items[fle.ItemID].FileIDs = append(op.Mapa.Items[fle.ItemID].FileIDs, fle.FileID)
+		itm, ok := op.Mapa.Items[fle.ItemID]
+		if ok {
+			op.Mapa.Items[fle.ItemID].FileIDs = append(itm.FileIDs, fle.FileID)
+		}
 	}
 	return nil
 }

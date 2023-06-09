@@ -97,7 +97,6 @@ func checkHas(body []byte, hash []byte) bool {
 }
 
 func (itemserv *ItemServer) UpdateByLastUpdate(ctx context.Context, in *pb.UpdateByLastUpdateRequest) (*pb.UpdateByLastUpdateResponse, error) {
-
 	// prepare to server
 	tostor := serverstorage.NewToStorage()
 	tostor.User.UserID = in.Userid
@@ -142,7 +141,6 @@ func (itemserv *ItemServer) UpdateByLastUpdate(ctx context.Context, in *pb.Updat
 }
 
 func (itemserv *ItemServer) GetFileByFileID(ctx context.Context, in *pb.GetFileByFileIDRequest) (*pb.GetFileByFileIDResponse, error) {
-
 	// prepare to server
 	file := serverstorage.NewFile()
 	file.FileID = in.Fileid

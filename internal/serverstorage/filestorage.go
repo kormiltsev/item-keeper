@@ -88,7 +88,7 @@ func deleteFilesByID(tostor *ToStorage) {
 	for _, file := range tostor.FilesNoBody {
 		err := deleteFileFromStorage(&file)
 		if err != nil {
-			log.Printf("can't delete file [%s] from local storage:%v", file.FileID, err)
+			log.Printf("can't delete file [%d] from server storage:%v", file.FileID, err)
 		}
 	}
 }
@@ -101,8 +101,8 @@ func deleteFileFromStorage(file *File) error {
 	path = filepath.Join(path, strconv.FormatInt(file.FileID, 10))
 
 	err := os.Remove(path)
-	if err != nil {
-		return fmt.Errorf("can't delete file:%v For itemID =%d", err, file.FileID)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("can't delete file:%v For itemID =%d", err, file.ItemID)
 	}
 	return nil
 }

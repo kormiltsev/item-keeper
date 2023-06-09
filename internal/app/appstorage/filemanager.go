@@ -97,6 +97,45 @@ func (file *File) SaveFileLocal(pass string) error {
 	return nil
 }
 
+func (file *File) DeleteFileLocal() {
+	// deregister file from local mapa
+	Catalog.mu.Lock()
+	defer Catalog.mu.Unlock()
+
+	// dereg file from item card in catalog
+	itm, ok := Catalog.Items[file.ItemID]
+	if ok {
+		for i, fleID := range itm.FileIDs {
+			if fleID == file.FileID {
+				newFileIDs := itm.FileIDs[:i]
+				if i != len(itm.FileIDs)-1 {
+					itm.FileIDs = append(newFileIDs, itm.FileIDs[i+1:]...)
+				}
+			}
+		}
+		Catalog.Items[file.ItemID] = itm
+	}
+
+	fle, ok := Catalog.Files[file.ItemID]
+	if !ok {
+		log.Printf("trying delete unregistered file. Address unknown. ItemID = %d, FileID = %d\n", file.ItemID, file.FileID)
+		return
+	}
+
+	// dereg from file catalog
+	delete(Catalog.Files, file.FileID)
+
+	deleteFileFromLocalStorageByAddress(fle.Address)
+}
+
+func deleteFileFromLocalStorageByAddress(path string) {
+
+	err := os.Remove(path)
+	if err != nil {
+		log.Printf("can't delete file:%v File address =%d\n", err, path)
+	}
+}
+
 func readFile(fileaddress string) ([]byte, int64, error) {
 	file, err := os.Open(fileaddress)
 

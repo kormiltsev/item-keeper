@@ -11,7 +11,6 @@ type Storager interface {
 	UpdateByLastUpdate(context.Context) error
 	GetFileByFileID(context.Context) error
 	DeleteItems(context.Context) error
-	DeleteFile(context.Context) error
 	Connect(context.Context) error
 	Disconnect()
 }

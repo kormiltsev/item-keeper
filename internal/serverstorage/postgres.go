@@ -332,7 +332,7 @@ func (postg *ToPostgres) UploadFile(ctx context.Context) error {
 }
 
 func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
-	log.Println("lastupdate requested:", postg.Data.User.LastUpdate)
+	log.Println("lastupdate requested:", postg.Data.User.LastUpdate, "for user:", postg.Data.User.UserID)
 	postg.Data.List = postg.Data.List[:0]
 	postg.Data.FilesNoBody = postg.Data.FilesNoBody[:0]
 
@@ -341,7 +341,7 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 	SELECT id, userid, body, deleted FROM itemkeeper_items
 	WHERE id IN(
 	  SELECT itemid FROM itemkeeper_changes 
-	  WHERE id > $1
+	  WHERE id > $1 AND userid = $2
 	)
 		;`
 
@@ -350,7 +350,7 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 	SELECT id, userid, itemid, deleted FROM itemkeeper_files
 	WHERE id IN(
 	  SELECT itemid FROM itemkeeper_changes 
-	  WHERE id > $1
+	  WHERE id > $1 AND userid = $2
 	)
 		;`
 
@@ -363,7 +363,7 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 	}
 
 	// items query
-	rows, err := db.Query(ctx, getItemsUpdated, postg.Data.User.LastUpdate)
+	rows, err := db.Query(ctx, getItemsUpdated, postg.Data.User.LastUpdate, postg.Data.User.UserID)
 	switch err {
 	case nil:
 	case pgx.ErrNoRows:
@@ -383,7 +383,7 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 	}
 
 	// files query
-	rows, err = db.Query(ctx, getFilesUpdated, postg.Data.User.LastUpdate)
+	rows, err = db.Query(ctx, getFilesUpdated, postg.Data.User.LastUpdate, postg.Data.User.UserID)
 	switch err {
 	case nil:
 	case pgx.ErrNoRows:
@@ -407,6 +407,7 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 }
 
 func (postg *ToPostgres) GetFileByFileID(ctx context.Context) error {
+
 	getFile := `
 	SELECT id, userid, itemid, deleted FROM itemkeeper_files
 	WHERE id = $1
@@ -453,26 +454,22 @@ func (postg *ToPostgres) DeleteItems(ctx context.Context) error {
 	UPDATE itemkeeper_items
 	SET deleted = TRUE
 	WHERE id = $1 AND userid = $2
-			;`
+	;`
 
 	// delete file
 	deleteFile := `
-			SELECT id, userid, itemid FROM itemkeeper_files
-			WHERE itemid = $1 AND userid = $2
-			;
 	UPDATE itemkeeper_files
 	SET deleted = TRUE
-	WHERE itemid = $3 AND userid = $4
-			;`
+	WHERE itemid = $1 AND userid = $2
+	RETURNING id
+	;`
 
 	// delete file by fileid
 	deleteFileByID := `
-	SELECT id, userid, itemid FROM itemkeeper_files
+	UPDATE itemkeeper_files
+	SET deleted = TRUE
 	WHERE id = $1 AND userid = $2
-	;
-UPDATE itemkeeper_files
-SET deleted = TRUE
-WHERE id = $3 AND userid = $4
+	RETURNING itemid
 	;`
 
 	getItem := `
@@ -481,14 +478,14 @@ WHERE id = $3 AND userid = $4
 		;`
 
 	getFile := `
-		SELECT deleted FROM itemkeeper_files
-		WHERE itemid = $1 AND userid = $2
-			;`
+	SELECT deleted FROM itemkeeper_files
+	WHERE itemid = $1 AND userid = $2
+	;`
 
 	getFileByID := `
-			SELECT deleted FROM itemkeeper_files
-			WHERE id = $1 AND userid = $2
-				;`
+	SELECT deleted FROM itemkeeper_files
+	WHERE id = $1 AND userid = $2
+	;`
 
 	tx, err := db.Begin(ctx)
 	if err != nil {
@@ -505,7 +502,7 @@ WHERE id = $3 AND userid = $4
 		for _, fileIDToDelete := range itemtodelete.FilesID {
 
 			// delete item
-			rows, err := tx.Query(ctx, deleteFileByID, fileIDToDelete, itemtodelete.UserID, fileIDToDelete, itemtodelete.UserID)
+			rows, err := tx.Query(ctx, deleteFileByID, fileIDToDelete, itemtodelete.UserID)
 			switch err {
 			case nil:
 			case pgx.ErrNoRows:
@@ -521,15 +518,17 @@ WHERE id = $3 AND userid = $4
 						log.Println("deleteFile and query Rollback err:", er)
 						return er
 					}
-					log.Println("PG deletion file error:", err)
 					return err
 				}
 				// if file not found of mark 'deleted' so ok, move next
 			}
 
 			for rows.Next() {
-				var newfile = File{}
-				err := rows.Scan(&newfile.FileID, &newfile.UserID, &newfile.ItemID)
+				var newfile = File{
+					FileID: fileIDToDelete,
+					UserID: itemtodelete.UserID,
+				}
+				err := rows.Scan(&newfile.ItemID)
 				if err != nil {
 					return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
 				}
@@ -537,6 +536,7 @@ WHERE id = $3 AND userid = $4
 			}
 
 		}
+
 		// delete item
 		_, err := tx.Exec(ctx, deleteItem, itemtodelete.ItemID, itemtodelete.UserID)
 		if err != nil {
@@ -551,13 +551,12 @@ WHERE id = $3 AND userid = $4
 					log.Println("deleteItem and query Rollback err:", er)
 					return er
 				}
-				log.Println("PG deletion error:", err)
 				return err
 			}
 		}
 
 		// delete item
-		rows, err := tx.Query(ctx, deleteFile, itemtodelete.ItemID, itemtodelete.UserID, itemtodelete.ItemID, itemtodelete.UserID)
+		rows, err := tx.Query(ctx, deleteFile, itemtodelete.ItemID, itemtodelete.UserID)
 		switch err {
 		case nil:
 		case pgx.ErrNoRows:
@@ -573,15 +572,17 @@ WHERE id = $3 AND userid = $4
 					log.Println("deleteFile and query Rollback err:", er)
 					return er
 				}
-				log.Println("PG deletion file error:", err)
 				return err
 			}
 			// if file not found of mark 'deleted' so ok, move next
 		}
 
 		for rows.Next() {
-			var newfile = File{}
-			err := rows.Scan(&newfile.FileID, &newfile.UserID, &newfile.ItemID)
+			var newfile = File{
+				UserID: itemtodelete.UserID,
+				ItemID: itemtodelete.ItemID,
+			}
+			err := rows.Scan(&newfile.FileID)
 			if err != nil {
 				return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
 			}
@@ -590,18 +591,31 @@ WHERE id = $3 AND userid = $4
 
 	}
 
+	// register changes
+	for _, file2delete := range postg.Data.FilesNoBody {
+		var changesid int64
+		err = tx.QueryRow(ctx, registerChanges, file2delete.UserID, file2delete.ItemID, file2delete.FileID).Scan(&changesid)
+		if err != nil {
+			log.Println("PG upload file (changes log) error:", err)
+			er := tx.Rollback(ctx)
+			if er != nil {
+				log.Println("PG putFile Rollback err:", err)
+				return er
+			}
+			return err
+		}
+		// add logs to RAM
+		logNewChange(file2delete.UserID, file2delete.ItemID, file2delete.FileID, changesid)
+	}
+
 	err = tx.Commit(ctx)
 	if err != nil {
-		log.Println("regUser: commit err: ", err)
+		log.Println("deleteItem: commit err: ", err)
 		return err
 	}
 
 	go deleteFilesByID(postg.Data)
 
-	return nil
-}
-
-func (postg *ToPostgres) DeleteFile(ctx context.Context) error {
 	return nil
 }
 

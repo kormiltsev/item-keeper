@@ -357,8 +357,18 @@ func (mock *ToMock) DeleteItems(ctx context.Context) error {
 	}
 
 	for i, itemtodelete := range mock.Data.List {
-		if itemtodelete.ItemID == 0 {
+		if itemtodelete.ItemID == 0 && len(itemtodelete.FilesID) == 0 {
+			// empty request, doing next item
 			continue
+		}
+
+		if itemtodelete.ItemID == 0 {
+			for _, fileIDToDelete := range itemtodelete.FilesID {
+				err := mock.deleteFile(fileIDToDelete)
+				if err != nil {
+					log.Println("file can't be delete:", err)
+				}
+			}
 		}
 
 		olditem, ok := Items[itemtodelete.ItemID]
@@ -400,14 +410,14 @@ func (mock *ToMock) DeleteItems(ctx context.Context) error {
 // 	return deleteFilesByItemID(file.UserID, file.ItemID)
 // }
 
-func (mock *ToMock) DeleteFile(ctx context.Context) error {
-	mu.Lock()
-	defer mu.Unlock()
+func (mock *ToMock) deleteFile(fileid int64) error {
 
-	file, ok := Files[mock.Data.File.FileID]
+	file, ok := Files[fileid]
 	if !ok {
 		return ErrItemNotFound
 	}
+	delete(Files, fileid)
+
 	return deleteFileByFileID(file.ItemID, file.UserID, file.FileID)
 }
 

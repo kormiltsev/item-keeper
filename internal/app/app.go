@@ -220,11 +220,8 @@ func UpdateDataFromServer(ctx context.Context) error {
 		return fmt.Errorf(`update request error:%v`, err)
 	}
 
-	if len(response.Item) == 0 {
-		if response.Lastupdate > currentlastupdate {
-			log.Printf("response empty, but lastupdate date different:%d>%d\n", response.Lastupdate, currentlastupdate)
-			return fmt.Errorf("last update not equal, but no items resieved")
-		}
+	if len(response.Item) == 0 && len(response.File) == 0 {
+		currentlastupdate = response.Lastupdate
 		log.Println("response empty, looks like everithing updated")
 		return nil
 	}
@@ -298,6 +295,18 @@ func UpdateDataFromServer(ctx context.Context) error {
 	fls := make([]appstorage.File, 0, len(response.File))
 	flsids := make([]int64, 0, len(response.File))
 	for _, fle := range response.File {
+
+		if fle.Deleted {
+			// copy to appstorage type
+			appfile := appstorage.NewFileStruct()
+			appfile.FileID = fle.Fileid
+			appfile.ItemID = fle.Itemid
+			appfile.UserID = fle.Userid
+
+			// DeleteFileLocal deregister and delete file
+			appfile.DeleteFileLocal()
+			continue
+		}
 		// register files id to items in mapa of items
 		var fl = appstorage.File{
 			FileID: fle.Fileid,
@@ -308,14 +317,14 @@ func UpdateDataFromServer(ctx context.Context) error {
 		flsids = append(flsids, fl.FileID)
 	}
 
+	// set lust update as on server
+	currentlastupdate = response.Lastupdate
+
 	err = operator.RegisterFilesToItems(fls...)
 	if err != nil {
 		log.Println("can't register files to item local:", err)
 		return err
 	}
-
-	// set lust update as on server
-	currentlastupdate = response.Lastupdate
 
 	// download files (run goroutine)
 	go requestFilesByFileID(0, flsids)
@@ -430,6 +439,7 @@ func DeleteItems(ctx context.Context, itemids []int64) ([]int64, error) {
 
 	// build request
 	req := pb.DeleteEntityRequest{
+		Userid: currentuser,
 		Itemid: itemids,
 	}
 
