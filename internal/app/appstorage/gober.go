@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
+
 	"fmt"
+
+	"golang.org/x/crypto/argon2"
 )
 
 func (item *Item) Encode(currentuserpassword string) (string, error) {
@@ -26,7 +28,11 @@ func (item *Item) Encode(currentuserpassword string) (string, error) {
 }
 
 func shifu(currentuserpassword string, data []byte) (string, error) {
-	key := sha256.Sum256([]byte(currentuserpassword))
+	// key := sha256.Sum256([]byte(currentuserpassword))
+	key, err := deriveKeyFromPassword(currentuserpassword)
+	if err != nil {
+		return "", err
+	}
 
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
@@ -63,7 +69,11 @@ func Decode(sourse string, currentuserpassword string) (*Item, error) {
 }
 
 func deshifu(currentuserpassword, data string) ([]byte, error) {
-	key := sha256.Sum256([]byte(currentuserpassword))
+	// key := sha256.Sum256([]byte(currentuserpassword))
+	key, err := deriveKeyFromPassword(currentuserpassword)
+	if err != nil {
+		return nil, err
+	}
 
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
@@ -87,4 +97,13 @@ func deshifu(currentuserpassword, data string) ([]byte, error) {
 		return nil, err
 	}
 	return decrypted, nil
+}
+
+func deriveKeyFromPassword(password string) ([]byte, error) {
+	salt := make([]byte, 16)
+
+	// Derive the key from the password using Argon2
+	key := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32)
+
+	return key, nil
 }

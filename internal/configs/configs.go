@@ -25,6 +25,8 @@ type ServiceConfigs struct {
 	DBlink            string `json:"database_dsn" env:"DATABASE_DSN"`
 	ConfigFile        string `json:"-" env:"CONFIG_FILE"`
 	FileServerAddress string `json:"fileserver_address" env:"FILESERVER_ADDRESS"`
+	S3key             string `json:"s3_key" env:"AWS_ACCESS_KEY_ID"`
+	S3secretKey       string `json:"s3_secret_key" env:"AWS_SECRET_ACCESS_KEY"`
 }
 
 var (

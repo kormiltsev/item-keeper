@@ -7,23 +7,29 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	configs "github.com/kormiltsev/item-keeper/internal/configs"
 )
 
 var storageaddress = "./data/ServerStorage"
 
-func fileUploadToFileStorage(id int64, file *File) {
+func fileUploadToFileStorage(file *File) {
 
-	// storage switcher TODO here
-	//
-	// =========================
+	if configs.ServiceConfig.S3key != "" {
+		err := uploadFileS3(file)
+		if err != nil {
+			log.Println("Can't save file S3:", err)
+		}
+		return
+	}
 
-	err := fileUploadToFileStorageLocal(id, file)
+	err := fileUploadToFileStorageLocal(file)
 	if err != nil {
 		log.Println("Can't save file local:", err)
 	}
 }
 
-func fileUploadToFileStorageLocal(id int64, file *File) error {
+func fileUploadToFileStorageLocal(file *File) error {
 	// create path localstorage/userid/itemid
 	path := filepath.Join(storageaddress, file.UserID)
 	path = filepath.Join(path, strconv.FormatInt(file.ItemID, 10))
@@ -35,7 +41,7 @@ func fileUploadToFileStorageLocal(id int64, file *File) error {
 	}
 
 	// write file
-	path = filepath.Join(path, strconv.FormatInt(id, 10))
+	path = filepath.Join(path, strconv.FormatInt(file.FileID, 10))
 	err = os.WriteFile(path, file.Body, 0644)
 	if err != nil {
 		return fmt.Errorf("write file %s error:%v", path, err)
@@ -44,9 +50,10 @@ func fileUploadToFileStorageLocal(id int64, file *File) error {
 }
 
 func fileDownloadFromStorage(file *File) ([]byte, error) {
-	// storage switcher add here
-	//
-	// ==========================
+	// storage switcher
+	if configs.ServiceConfig.S3key != "" {
+		return downloadS3(file)
+	}
 
 	// if local file server
 	// create path localstorage/userid/itemid
@@ -80,10 +87,13 @@ func readFileLocal(fileaddress string) ([]byte, error) {
 }
 
 func deleteFilesByID(tostor *ToStorage) {
-	// storage switcher add here
-	//
-	// ==========================
-
+	// storage switcher
+	if configs.ServiceConfig.S3key != "" {
+		err := deleteS3(tostor.FilesNoBody)
+		if err != nil {
+			log.Println("S3 can't delete files")
+		}
+	}
 	// if local file server
 	for _, file := range tostor.FilesNoBody {
 		err := deleteFileFromStorage(&file)

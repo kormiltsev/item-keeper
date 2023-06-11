@@ -7,7 +7,11 @@ import (
 	"sync"
 )
 
-var localstorageaddress = "./data/ClientLocalStorage"
+var (
+	localstorageaddress = "./data/ClientLocalStorage"
+	localcatalogaddress = "./data/ClientLocalStorage/Catalog.dat"
+	clientUniqueID      = "someUniqueGeneratedID"
+)
 
 var maxFileSize int64 = 5242880
 
@@ -40,27 +44,22 @@ type Operator struct {
 
 var ErrEmptyRequest = fmt.Errorf("empty request")
 
-func NewUser(userid string, lastUpdate int64) {
+func newCatalog(userid string, lastUpdate int64) {
 	Catalog.mu.Lock()
 	defer Catalog.mu.Unlock()
-
-	// create new Catalog for new user
-	// remove user's directory with all files and subdirectories
-	// err := os.RemoveAll(userFolderPass(userid))
-	// if err != nil {
-	// 	log.Printf("can't delete directory for userid = %s, error:%v", userid, err)
-	// }
 
 	Catalog.LastUpdate = lastUpdate
 	Catalog.UserID = userid
 	Catalog.Items = map[int64]*Item{}
-	Catalog.Files = map[int64]*File{} // need to delete files
+	Catalog.Files = map[int64]*File{}
 	Catalog.parameters = map[string][]int64{}
+}
+
+func NewUser(userid string, lastUpdate int64) {
+	newCatalog(userid, lastUpdate)
 
 	//erase file storage
 	deleteAllFilesAllUsers()
-
-	// log.Println(Catalog)
 }
 
 func NewItem(userid string) *Item {
@@ -104,50 +103,64 @@ func (op *Operator) PutItems(items ...*Item) error {
 }
 
 func (op *Operator) FindItemByParameter() error {
-	op.Mapa.mu.Lock()
-	defer op.Mapa.mu.Unlock()
-
 	// if empty request
 	if len(op.Search) == 0 {
 		return ErrEmptyRequest
 	}
 
+	op.Mapa.mu.Lock()
+	defer op.Mapa.mu.Unlock()
+
 	// for every searchKey
-	for key, searchstrings := range op.Search {
 
-		// for every itemID in Catalog.parameters[searchKey]
-		for i, itemid := range op.Mapa.parameters[key] {
+	for id, itm := range op.Mapa.Items {
+		for _, par := range itm.Parameters {
 
-			// is item already in answer list?
-			if _, ok := op.Answer[itemid]; ok {
-				continue
-			}
-
-			// if item deleted, so need to delete it from paramneters list
-			itm, ok := op.Mapa.Items[itemid]
-			if !ok {
-				if i == len(op.Mapa.parameters[key])-1 {
-					op.Mapa.parameters[key] = op.Mapa.parameters[key][:len(op.Mapa.parameters[key])-1]
-				} else {
-					list := op.Mapa.parameters[key]
-					op.Mapa.parameters[key] = append(list[:i], list[i+1:]...)
-				}
-				continue
-			}
-			// search pKeysearch in item's Parameters
-			for _, par := range itm.Parameters {
-
-				// for every searchVal in search list
-				for _, valsearche := range searchstrings {
-
-					// find!
-					if strings.Contains(par.Value, valsearche) {
-						op.Answer[itemid] = op.Mapa.Items[itemid]
-						op.AnswerAddresses[itemid] = op.addFilesAddresses(itemid)
+			for key, searchstrings := range op.Search {
+				if key == par.Name {
+					for _, searchword := range searchstrings {
+						if strings.Contains(par.Value, searchword) {
+							op.Answer[id] = op.Mapa.Items[id]
+							op.AnswerAddresses[id] = op.addFilesAddresses(id)
+						}
 					}
+
 				}
 			}
 		}
+		// // for every itemID in Catalog.parameters[searchKey]
+		// for i, itemid := range op.Mapa.parameters[key] {
+
+		// 	// is item already in answer list?
+		// 	if _, ok := op.Answer[itemid]; ok {
+		// 		continue
+		// 	}
+
+		// 	// if item deleted, so need to delete it from paramneters list
+		// 	itm, ok := op.Mapa.Items[itemid]
+		// 	if !ok {
+		// 		if i == len(op.Mapa.parameters[key])-1 {
+		// 			op.Mapa.parameters[key] = op.Mapa.parameters[key][:len(op.Mapa.parameters[key])-1]
+		// 		} else {
+		// 			list := op.Mapa.parameters[key]
+		// 			op.Mapa.parameters[key] = append(list[:i], list[i+1:]...)
+		// 		}
+		// 		continue
+		// 	}
+		// 	// search pKeysearch in item's Parameters
+		// 	for _, par := range itm.Parameters {
+
+		// 		// for every searchVal in search list
+		// 		for _, valsearche := range searchstrings {
+
+		// 			// find!
+		// 			if strings.Contains(par.Value, valsearche) {
+		// 				op.Answer[itemid] = op.Mapa.Items[itemid]
+		// 				op.AnswerAddresses[itemid] = op.addFilesAddresses(itemid)
+		// 			}
+		// 		}
+		// 	}
+		// }
 	}
 	return nil
 }

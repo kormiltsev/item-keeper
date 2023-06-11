@@ -15,6 +15,24 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func LoadFromFile(cryptokey string) error {
+	var err error
+	currentuserencryptokey = cryptokey
+	currentuser, err = appstorage.ReadDecryptedCatalog(cryptokey)
+	return err
+}
+
+func SaveToFile() error {
+	op, err := appstorage.ReturnOperator(currentuser)
+	if err != nil {
+		log.Println("ReturnOperator:", err)
+		return err
+	}
+	err = op.SaveEncryptedCatalog(currentuserencryptokey)
+
+	return nil
+}
+
 func NewAppItem() *appstorage.Item {
 	return &appstorage.Item{}
 }
@@ -71,7 +89,7 @@ func AddNewItem(ctx context.Context, appitem *appstorage.Item) error {
 
 	// update data from server
 	if errup := UpdateDataFromServer(ctx); errup != nil {
-		log.Println("put item: can't update from server:", err)
+		log.Println("put item: can't update from server:", errup)
 		return nil
 	}
 
@@ -81,22 +99,12 @@ func AddNewItem(ctx context.Context, appitem *appstorage.Item) error {
 
 	return nil
 
-	// // save item to Catalog, request interface
-	// operator, erro := appstorage.ReturnOperator(appitem.UserID)
-	// if erro != nil {
-	// 	log.Println(erro)
-	// 	return err
-	// }
-
-	// // save local
-	// err = operator.PutItems(appitem)
-	// if err != nil {
-	// 	log.Println("can't save item local:", err)
-	// 	return err
-	// }
 }
 
 func uploadFileFromItemToServer(appitem *appstorage.Item) {
+	if len(appitem.UploadAddress) == 0 {
+		return
+	}
 
 	log.Println("starts file upload: ", appitem.UploadAddress)
 
@@ -116,6 +124,7 @@ func uploadFileFromItemToServer(appitem *appstorage.Item) {
 			// ===========================
 
 			log.Printf("File %s not uploaded:%v", fileaddress, err)
+			return
 		}
 
 		// check if other user authorized local already? then no need to save file local
@@ -333,6 +342,10 @@ func UpdateDataFromServer(ctx context.Context) error {
 }
 
 func requestFilesByFileID(tryNumber int, listOfFileids []int64) {
+	if len(listOfFileids) == 0 {
+		return
+	}
+
 	doneFilesID, nondoneFilesID, err := RequestFilesByFileID(context.Background(), listOfFileids...)
 	if err != nil {
 		log.Printf("%d/%d files downloaded, error: %v", len(doneFilesID), len(listOfFileids), err)
@@ -353,7 +366,8 @@ func requestFilesByFileID(tryNumber int, listOfFileids []int64) {
 func RequestFilesByFileID(ctx context.Context, fileids ...int64) ([]int64, []int64, error) {
 	var err error
 	if len(fileids) == 0 {
-		return nil, nil, fmt.Errorf("empty request")
+		log.Println("0 files requested")
+		return nil, nil, appstorage.ErrEmptyRequest
 	}
 
 	readyfiles := make([]int64, 0)
@@ -466,6 +480,5 @@ func DeleteItems(ctx context.Context, itemids []int64) ([]int64, error) {
 	if err := UpdateDataFromServer(ctx); err != nil {
 		log.Println("deleted. but update from server error:", err)
 	}
-
 	return response.Itemid, nil
 }

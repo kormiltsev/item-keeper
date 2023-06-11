@@ -2,15 +2,9 @@ package serverstorage
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
-	"strconv"
-	"time"
 
 	pgx "github.com/jackc/pgx/v5"
 
@@ -24,10 +18,6 @@ var db *pgxpool.Pool
 type ToPostgres struct {
 	Data *ToStorage
 }
-
-const (
-	useridkey = `usersids`
-)
 
 const (
 	registerChanges = `
@@ -47,26 +37,6 @@ SET body = $1, deleted = $2
 WHERE id = $3
 		;`
 )
-
-func shifu(a int) (string, error) {
-	key := sha256.Sum256([]byte(useridkey))
-
-	block, err := aes.NewCipher(key[:])
-	if err != nil {
-		return "", err
-	}
-	aesgcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	nonce := []byte("awsome_nonce")
-
-	ciphertext := aesgcm.Seal(nil, nonce, []byte(strconv.Itoa(a)), nil)
-
-	export := hex.EncodeToString(ciphertext)
-	return export, nil
-}
 
 func (postg *ToPostgres) RegUser(ctx context.Context) error {
 	if postg.Data.User.Login == "" || postg.Data.User.Password == "" {
@@ -94,28 +64,27 @@ func (postg *ToPostgres) RegUser(ctx context.Context) error {
 	}
 
 	var id int
-	er := db.QueryRow(ctx, regUser, postg.Data.User.Login, postg.Data.User.Password).Scan(&id)
-
-	// _, er := tx.Exec(ctx, regUser, postg.Data.User.Login, postg.Data.User.Password, postg.Data.User.UserID)
-	if er != nil {
-		errortext := er.Error()
+	err = db.QueryRow(ctx, regUser, postg.Data.User.Login, postg.Data.User.Password).Scan(&id)
+	if err != nil {
+		errortext := err.Error()
 
 		if errortext[len(errortext)-6:len(errortext)-1] == "23505" {
+			// if pgErr, ok := err.(pgx.PgError); ok && pgErr.Code == "23505" {
 			log.Println("user exists")
 			return ErrUserExists
 		}
 
 		// no rows returned, its OK, But if othr error then rollback
-		if !errors.Is(er, pgx.ErrNoRows) {
-			log.Println("PG reg err:", er)
+		if !errors.Is(err, pgx.ErrNoRows) {
+			log.Println("PG reg err:", err)
 
-			err := tx.Rollback(ctx)
-			if err != nil {
-				log.Println("regUser: Rollback err:", err)
-				return err
+			er := tx.Rollback(ctx)
+			if er != nil {
+				log.Println("regUser: Rollback err:", er)
+				return er
 			}
 
-			return er
+			return err
 		}
 	}
 
@@ -131,15 +100,15 @@ func (postg *ToPostgres) RegUser(ctx context.Context) error {
 	}
 
 	// add userid string (generated from id)
-	_, er = tx.Exec(ctx, regUserSetID, postg.Data.User.UserID, id)
-	if er != nil {
-		err := tx.Rollback(ctx)
-		if err != nil {
-			log.Println("regUser update: Rollback err:", err)
-			return err
+	_, err = tx.Exec(ctx, regUserSetID, postg.Data.User.UserID, id)
+	if err != nil {
+		er := tx.Rollback(ctx)
+		if er != nil {
+			log.Println("regUser update: Rollback err:", er)
+			return er
 		}
-		log.Println("PG reg EXEC:", er)
-		return er
+		log.Println("PG reg EXEC:", err)
+		return err
 	}
 
 	err = tx.Commit(ctx)
@@ -172,27 +141,25 @@ func (postg *ToPostgres) AuthUser(ctx context.Context) error {
 	;`
 
 	var id int
-	var passwd, userid string
-	err := db.QueryRow(ctx, regUser, postg.Data.User.Login).Scan(&id, &passwd, &userid)
-	switch err {
-	case nil:
-		// check password
-		if passwd == postg.Data.User.Password {
-			// return userID
-			postg.Data.User.UserID = userid
-
-			// send to client current server time
-			postg.Data.User.LastUpdate = time.Now().UnixMilli()
-
-			return nil
+	var passwd, userID string
+	err := db.QueryRow(ctx, regUser, postg.Data.User.Login).Scan(&id, &passwd, &userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrLoginNotFound
 		}
-		return ErrPasswordWrong
-	case pgx.ErrNoRows:
-		return ErrLoginNotFound
-	default:
-		log.Println("postgres GET err: ", err)
-		return fmt.Errorf("storage BD err:%v", err)
+		log.Println("postgres GET error:", err)
+		return fmt.Errorf("storage DB error: %v", err)
 	}
+
+	// Check the password
+	if passwd != postg.Data.User.Password {
+		return ErrPasswordWrong
+	}
+
+	// Assign the userID and last update time
+	postg.Data.User.UserID = userID
+
+	return nil
 }
 
 func (postg *ToPostgres) PutItems(ctx context.Context) error {
@@ -200,12 +167,6 @@ func (postg *ToPostgres) PutItems(ctx context.Context) error {
 	if len(postg.Data.List) == 0 {
 		return ErrEmptyRequest
 	}
-	// id serial primary key,
-	// userid TEXT not null,
-	// body TEXT,
-	// files TEXT[],
-	// deleted BOOLEAN,
-	// uploaded_at TIMESTAMPTZ DEFAULT Now()
 
 	// write to postgres
 	putItem := `
@@ -217,6 +178,7 @@ func (postg *ToPostgres) PutItems(ctx context.Context) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		log.Println("1: begin error:", err)
+		return err
 	}
 
 	// for all items
@@ -236,7 +198,7 @@ func (postg *ToPostgres) PutItems(ctx context.Context) error {
 		err := tx.QueryRow(ctx, putItem, item.UserID, item.Body).Scan(&id)
 		if err != nil {
 			// erase ItemID to mark itemn as error one
-			postg.Data.List[i].ItemID = 0
+			// postg.Data.List[i].ItemID = 0
 			log.Println("PG put item error:", err)
 			continue
 		}
@@ -298,6 +260,7 @@ func (postg *ToPostgres) UploadFile(ctx context.Context) error {
 		}
 		return err
 	}
+	postg.Data.File.FileID = id
 
 	// register changes
 	var changesid int64
@@ -326,7 +289,7 @@ func (postg *ToPostgres) UploadFile(ctx context.Context) error {
 	logNewChange(postg.Data.File.UserID, postg.Data.File.ItemID, id, changesid) // go?
 
 	// send file to storage
-	go fileUploadToFileStorage(id, &postg.Data.File)
+	go fileUploadToFileStorage(&postg.Data.File)
 
 	return nil
 }
@@ -414,19 +377,23 @@ func (postg *ToPostgres) GetFileByFileID(ctx context.Context) error {
 		;`
 
 	// get last update
-	var fileNoBody = File{}
-	err := db.QueryRow(ctx, getFile, postg.Data.File.FileID).Scan(&fileNoBody.FileID, &fileNoBody.UserID, &fileNoBody.ItemID, &fileNoBody.Deleted)
-	switch err {
-	case nil:
-	case pgx.ErrNoRows:
-		log.Println("file not found in DB")
-		return ErrItemNotFound
-	default:
-		log.Println("postgres GET file by id err: ", err)
-		return fmt.Errorf("storage BD err:%v", err)
+	var fileNoBody File
+	err := db.QueryRow(ctx, getFile, postg.Data.File.FileID).Scan(
+		&fileNoBody.FileID,
+		&fileNoBody.UserID,
+		&fileNoBody.ItemID,
+		&fileNoBody.Deleted,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			log.Println("file not found in DB")
+			return ErrItemNotFound
+		}
+		log.Println("postgres GET file by id err:", err)
+		return fmt.Errorf("storage DB err: %v", err)
 	}
 
-	if postg.Data.File.FileID == fileNoBody.FileID && postg.Data.File.UserID == fileNoBody.UserID {
+	if postg.Data.File.UserID == fileNoBody.UserID {
 		postg.Data.File.Body, err = fileDownloadFromStorage(&fileNoBody)
 		if err != nil {
 			log.Println("fileDownloadFromStorage error: ", err)
@@ -501,7 +468,7 @@ func (postg *ToPostgres) DeleteItems(ctx context.Context) error {
 		// if there is file id so need to delete onli this file (don't delete item)
 		for _, fileIDToDelete := range itemtodelete.FilesID {
 
-			// delete item
+			// delete file
 			rows, err := tx.Query(ctx, deleteFileByID, fileIDToDelete, itemtodelete.UserID)
 			switch err {
 			case nil:
@@ -621,6 +588,16 @@ func (postg *ToPostgres) DeleteItems(ctx context.Context) error {
 
 // Connect make connection with DB or panic
 func (postg *ToPostgres) Connect(ctx context.Context) error {
+
+	// connect to file storage
+	if configs.ServiceConfig.S3key != "" {
+		err := createSession()
+		if err != nil {
+			log.Println("failed to connect S3:", err)
+			return err
+		}
+	}
+
 	// connect to DB
 	poolConfig, err := pgxpool.ParseConfig(configs.ServiceConfig.DBlink)
 	if err != nil {

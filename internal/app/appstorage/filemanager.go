@@ -64,7 +64,7 @@ func (file *File) SaveFileLocal(pass string) error {
 
 	// check body
 	if len(file.Body) == 0 {
-		return fmt.Errorf("empty file.Body in file %s", file.FileID)
+		return fmt.Errorf("empty file.Body in file %d", file.FileID)
 	}
 
 	// create path localstorage/userid/itemid

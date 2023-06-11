@@ -23,6 +23,9 @@ var (
 	currentlastupdate      int64  = 0
 )
 
+func SaveUserCryptoPass(secretword string) {
+	currentuserencryptokey = secretword
+}
 func RegUser(ctx context.Context, login, password string) error {
 
 	// set context with time limit

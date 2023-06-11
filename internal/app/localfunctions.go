@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"log"
 
 	appstorage "github.com/kormiltsev/item-keeper/internal/app/appstorage"
@@ -27,7 +26,7 @@ func (searchmapa *SearchByParameters) SearchItemByParameters() error {
 	// prepare to server
 	oper, err := appstorage.ReturnOperator(currentuser)
 	if err != nil {
-		log.Println("user not found in local memory. RegUser before SearchItemByParameters()")
+		log.Println("user not found in local memory. RegUser before SearchItemByParameters(): ", err)
 		return nil
 	}
 
@@ -37,7 +36,7 @@ func (searchmapa *SearchByParameters) SearchItemByParameters() error {
 		}
 		oper.Search[key] = append(oper.Search[key], val...)
 
-		log.Printf("will search %v in parameter %s\n", oper.Search[key], key)
+		log.Printf("will search %v in parameter [%s]\n", oper.Search[key], key)
 	}
 
 	err = oper.FindItemByParameter()
@@ -45,15 +44,15 @@ func (searchmapa *SearchByParameters) SearchItemByParameters() error {
 		log.Printf("FAIL search error: %v, looking for:%v", err, searchmapa.Mapa)
 	}
 
-	ans := "search results:"
+	// ans := "search results:"
 
 	for key, item := range oper.Answer {
-		ans = fmt.Sprintf("%s\n%v, Files: %v", ans, item.Parameters, oper.AnswerAddresses[key])
+		// ans = fmt.Sprintf("%s\n%v, Files: %v", ans, item.Parameters, oper.AnswerAddresses[key])
 
 		// copy to answer
 		searchmapa.Answer[key] = item
 	}
-	log.Println(ans)
+	// log.Println(ans)
 
 	return nil
 }

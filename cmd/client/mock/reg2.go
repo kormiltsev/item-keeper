@@ -22,11 +22,4 @@ func main() {
 		log.Println("FAIL create user:", err)
 		return
 	}
-
-	// create user exists
-	// err = app.RegUser(ctx, login2, "lll")
-	// if err == nil {
-	// 	log.Println(`FAIL create user: expect error "user exists", but resieved nil`)
-	// 	return
-	// }
 }
