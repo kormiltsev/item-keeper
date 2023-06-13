@@ -56,10 +56,12 @@ func (op *Operator) SaveEncryptedCatalog(password string) error {
 type Listik struct {
 	LastUpdate int64
 	UserID     string
-	ItemIDs    []int64
-	Items      []Item // key = itemid
-	FileIDs    []int64
-	Files      []File // key = fileid
+	Items      map[int64]*Item
+	Files      map[int64]*File
+	// ItemIDs    []int64
+	// Items      []Item // key = itemid
+	// FileIDs    []int64
+	// Files      []File // key = fileid
 }
 
 func (op *Operator) serialize() ([]byte, error) {
@@ -75,20 +77,22 @@ func (op *Operator) serialize() ([]byte, error) {
 	tosave := Listik{
 		LastUpdate: op.Mapa.LastUpdate,
 		UserID:     op.Mapa.UserID,
-		ItemIDs:    make([]int64, 0),
-		Items:      make([]Item, 0),
-		FileIDs:    make([]int64, 0),
-		Files:      make([]File, 0),
+		Items:      op.Mapa.Items,
+		Files:      op.Mapa.Files,
+		// ItemIDs:    make([]int64, 0),
+		// Items:      make([]Item, 0),
+		// FileIDs:    make([]int64, 0),
+		// Files:      make([]File, 0),
 	}
 
-	for k, v := range op.Mapa.Items {
-		tosave.ItemIDs = append(tosave.ItemIDs, k)
-		tosave.Items = append(tosave.Items, *v)
-	}
-	for k, v := range op.Mapa.Files {
-		tosave.FileIDs = append(tosave.FileIDs, k)
-		tosave.Files = append(tosave.Files, *v)
-	}
+	// for k, v := range op.Mapa.Items {
+	// 	tosave.ItemIDs = append(tosave.ItemIDs, k)
+	// 	tosave.Items = append(tosave.Items, *v)
+	// }
+	// for k, v := range op.Mapa.Files {
+	// 	tosave.FileIDs = append(tosave.FileIDs, k)
+	// 	tosave.Files = append(tosave.Files, *v)
+	// }
 
 	// Encode the catalog structure
 	if err := encoder.Encode(tosave); err != nil {
@@ -160,10 +164,12 @@ func deserialize(data []byte) (string, error) {
 
 	// Decode the catalog structure
 	catalogue := Listik{
-		ItemIDs: make([]int64, 0),
-		Items:   make([]Item, 0),
-		FileIDs: make([]int64, 0),
-		Files:   make([]File, 0),
+		Items: map[int64]*Item{},
+		Files: map[int64]*File{},
+		// ItemIDs: make([]int64, 0),
+		// Items:   make([]Item, 0),
+		// FileIDs: make([]int64, 0),
+		// Files:   make([]File, 0),
 	}
 
 	err := decoder.Decode(&catalogue)
@@ -174,12 +180,15 @@ func deserialize(data []byte) (string, error) {
 	Catalog.LastUpdate = catalogue.LastUpdate
 	Catalog.UserID = catalogue.UserID
 
-	for i, v := range catalogue.ItemIDs {
-		Catalog.Items[v] = &catalogue.Items[i]
-	}
-	for i, v := range catalogue.FileIDs {
-		Catalog.Files[v] = &catalogue.Files[i]
-	}
+	Catalog.Items = catalogue.Items
+	Catalog.Files = catalogue.Files
+
+	// for i, v := range catalogue.ItemIDs {
+	// 	Catalog.Items[v] = &catalogue.Items[i]
+	// }
+	// for i, v := range catalogue.FileIDs {
+	// 	Catalog.Files[v] = &catalogue.Files[i]
+	// }
 
 	return Catalog.UserID, nil
 }

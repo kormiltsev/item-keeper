@@ -51,7 +51,7 @@ func StartTui(ctx context.Context, ch chan struct{}) {
 }
 
 func (appman *manager) regPage() {
-	fmt.Print("No data found, please login or register\n[r] Registration\n[a] Autorisation\n[s] Secret word\n[q] for quit\n")
+	fmt.Print("Please login or register\n[r] Registration\n[a] Autorisation\n[s] Secret word\n[q] for quit\n")
 	response, err := appman.reader.ReadString('\n')
 	if err != nil {
 		log.Println("unexp err:", err)
@@ -108,7 +108,7 @@ func (appman *manager) regUser() {
 
 	err = app.RegUser(appman.ctx, login, pass)
 	if err != nil {
-		fmt.Print("Error:", err)
+		fmt.Println("Error:", err)
 		appman.regPage()
 	}
 
@@ -141,7 +141,7 @@ func (appman *manager) autUser() {
 
 func (appman *manager) openMenu() {
 
-	fmt.Print("\n[ITEM KEEPER]\n[s] Search\n[a] Add new item\n[d] Delete item\n[q] Quit")
+	fmt.Print("\n[ITEM KEEPER]\n[s] Search\n[a] Add new item\n[d] Delete item\n[c] Catalog print\n[q] Quit\n")
 	response, err := appman.reader.ReadString('\n')
 	if err != nil {
 		log.Println("unexp err:", err)
@@ -157,22 +157,47 @@ func (appman *manager) openMenu() {
 		appman.delItem()
 	case "q\n":
 		appman.quit()
+	case "c\n":
+		appman.showMapa()
 	default:
 		appman.openMenu()
 	}
 }
 
+func (appman *manager) showMapa() {
+	mapa, err := app.ShowCatalog()
+	if err != nil {
+		fmt.Println("nothing found")
+	}
+
+	fmt.Println("+---------------------------------------+")
+	for _, item := range mapa {
+		fmt.Printf("ID: %d\n", item.ItemID)
+		for _, param := range item.Parameters {
+			fmt.Printf("%s: %s\n", param.Name, param.Value)
+		}
+		if len(item.UploadAddress) != 0 {
+			fmt.Print("Files: \n")
+			for _, fileaddress := range item.UploadAddress {
+				fmt.Printf("   %s\n", fileaddress)
+			}
+		}
+		fmt.Println("+---------------------------------------+")
+	}
+	appman.openMenu()
+}
+
 func (appman *manager) search() {
 
 	// here can be more than one parameter to search and more than one word. TODO "for" if required
-	fmt.Print("Search in parameter (NAME):")
+	fmt.Print("Parameter's name:")
 	pkey, err := appman.reader.ReadString('\n')
 	if err != nil {
 		log.Println("unexp err:", err)
 		appman.openMenu()
 	}
 
-	fmt.Printf("Search in parameter %s:", pkey[:len(pkey)-1])
+	fmt.Printf("In [%s] looking for:", pkey[:len(pkey)-1])
 	searchWord, err := appman.reader.ReadString('\n')
 	if err != nil {
 		log.Println("unexp err:", err)
@@ -201,6 +226,7 @@ func (appman *manager) search() {
 			fmt.Printf("Files: %v\n", searcher.FileAddresses)
 		}
 	}
+
 	appman.openMenu()
 }
 
@@ -298,6 +324,7 @@ func (appman *manager) delItem() {
 		return
 	}
 
+	log.Println("listItemIDToDelete", listItemIDToDelete)
 	notdeletedlist, err := app.DeleteItems(appman.ctx, listItemIDToDelete)
 	if err != nil {
 		fmt.Print("This id was not deleted:", notdeletedlist, "the reason is:", err)

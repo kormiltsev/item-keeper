@@ -235,3 +235,13 @@ func (op *Operator) DeleteItemByID(itemid int64) error {
 
 	return nil
 }
+
+func AddFileAddresses(item *Item) *Item {
+	Catalog.mu.Lock()
+	defer Catalog.mu.Unlock()
+
+	for _, fileid := range item.FileIDs {
+		item.UploadAddress = append(item.UploadAddress, Catalog.Files[fileid].Address)
+	}
+	return item
+}

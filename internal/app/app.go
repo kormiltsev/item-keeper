@@ -482,3 +482,23 @@ func DeleteItems(ctx context.Context, itemids []int64) ([]int64, error) {
 	}
 	return response.Itemid, nil
 }
+
+func ShowCatalog() (map[int64]*appstorage.Item, error) {
+	operator, err := appstorage.ReturnOperator(currentuser)
+	if err != nil {
+		return nil, fmt.Errorf("can't save local:%v", err)
+	}
+
+	operator.Mapa.Items = mapMutate(operator.Mapa.Items, appstorage.AddFileAddresses)
+	return operator.Mapa.Items, nil
+}
+
+func mapMutate[M ~map[int64]T, T any](m M, fn func(T) T) M {
+	if len(m) == 0 {
+		return m
+	}
+	for k, v := range m {
+		m[k] = fn(v)
+	}
+	return m
+}
