@@ -6,11 +6,12 @@ type Parameter struct {
 }
 
 type Item struct {
-	UserID        string
-	ItemID        int64
-	Parameters    []Parameter
-	FileIDs       []int64
-	UploadAddress []string
+	UserID         string
+	ItemID         int64
+	Parameters     []Parameter
+	FileIDs        []int64
+	UploadAddress  []string
+	LocalAddresses []string // not for storage
 }
 
 type File struct {
@@ -18,6 +19,6 @@ type File struct {
 	UserID  string
 	ItemID  int64
 	Address string // for storage
-	Body    []byte // not for store
-	Hash    string // not for store
+	Body    []byte // not for storage
+	Hash    string // not for storage
 }

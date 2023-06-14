@@ -176,9 +176,9 @@ func (appman *manager) showMapa() {
 		for _, param := range item.Parameters {
 			fmt.Printf("%s: %s\n", param.Name, param.Value)
 		}
-		if len(item.UploadAddress) != 0 {
+		if len(item.LocalAddresses) != 0 {
 			fmt.Print("Files: \n")
-			for _, fileaddress := range item.UploadAddress {
+			for _, fileaddress := range item.LocalAddresses {
 				fmt.Printf("   %s\n", fileaddress)
 			}
 		}

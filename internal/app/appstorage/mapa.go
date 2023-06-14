@@ -185,17 +185,42 @@ func (op *Operator) RegisterFilesToItems(files ...File) error {
 	op.Mapa.mu.Lock()
 	defer op.Mapa.mu.Unlock()
 
-	Catalog.LastUpdate = op.LastUpdate
+	if op.LastUpdate > Catalog.LastUpdate {
+		Catalog.LastUpdate = op.LastUpdate
+	}
 
 	for _, fle := range files {
 		// add file id to item in catalog
 		itm, ok := op.Mapa.Items[fle.ItemID]
 		if ok {
+			for _, ids := range itm.FileIDs {
+				if ids == fle.FileID {
+					continue
+				}
+			}
 			op.Mapa.Items[fle.ItemID].FileIDs = append(itm.FileIDs, fle.FileID)
 		}
 	}
 	return nil
 }
+
+// func (op *Operator) RegisterAddressToFiles(files ...File) error {
+// 	op.Mapa.mu.Lock()
+// 	defer op.Mapa.mu.Unlock()
+
+// 	if op.LastUpdate > Catalog.LastUpdate {
+// 		Catalog.LastUpdate = op.LastUpdate
+// 	}
+
+// 	for _, fle := range files {
+// 		// add file id to item in catalog
+// 		itm, ok := op.Mapa.Items[fle.ItemID]
+// 		if ok {
+// 			op.Mapa.Items[fle.ItemID].FileIDs = append(itm.FileIDs, fle.FileID)
+// 		}
+// 	}
+// 	return nil
+// }
 
 // func ReturnIDs() []int64 {
 // 	answer := make([]int64, len(Catalog.Items))
@@ -236,12 +261,15 @@ func (op *Operator) DeleteItemByID(itemid int64) error {
 	return nil
 }
 
-func AddFileAddresses(item *Item) *Item {
-	Catalog.mu.Lock()
-	defer Catalog.mu.Unlock()
+func (op *Operator) UploadFilesAddresses() error {
+	op.Mapa.mu.Lock()
+	defer op.Mapa.mu.Unlock()
 
-	for _, fileid := range item.FileIDs {
-		item.UploadAddress = append(item.UploadAddress, Catalog.Files[fileid].Address)
+	for k, item := range op.Mapa.Items {
+		op.Mapa.Items[k].LocalAddresses = op.Mapa.Items[k].LocalAddresses[:0]
+		for _, fileid := range item.FileIDs {
+			op.Mapa.Items[k].LocalAddresses = append(op.Mapa.Items[k].LocalAddresses, op.Mapa.Files[fileid].Address)
+		}
 	}
-	return item
+	return nil
 }

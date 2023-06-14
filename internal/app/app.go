@@ -22,6 +22,19 @@ func LoadFromFile(cryptokey string) error {
 	return err
 }
 
+func ShowCatalog() (map[int64]*appstorage.Item, error) {
+	operator, err := appstorage.ReturnOperator(currentuser)
+	if err != nil {
+		return nil, fmt.Errorf("operator local:%v", err)
+	}
+
+	err = operator.UploadFilesAddresses()
+	if err != nil {
+		return nil, fmt.Errorf("can't show catalog:%v", err)
+	}
+	return operator.Mapa.Items, nil
+}
+
 func SaveToFile() error {
 	op, err := appstorage.ReturnOperator(currentuser)
 	if err != nil {
@@ -140,7 +153,17 @@ func uploadFileFromItemToServer(appitem *appstorage.Item) {
 		}
 
 		// copy file address into new appitem
-		appitem.FileIDs = append(appitem.FileIDs, file.FileID)
+		// appitem.FileIDs = append(appitem.FileIDs, file.FileID)
+
+		// reg fileID to item to Catalog, request interface
+		operator, erro := appstorage.ReturnOperator(currentuser)
+		if erro != nil {
+			log.Printf("can't save local:%v\n", erro)
+		}
+		err = operator.RegisterFilesToItems(*file)
+		if err != nil {
+			log.Println("Can't register file to list of Items:", err)
+		}
 	}
 }
 
@@ -253,11 +276,11 @@ func UpdateDataFromServer(ctx context.Context) error {
 		if itm.Deleted {
 			// log.Println("deleted da:", itm.Itemid)
 			// delete item in Catalog, request interface
-			operator, erro := appstorage.ReturnOperator(currentuser)
-			if erro != nil {
-				log.Println("cant delete local, Operator error:", erro)
-				continue
-			}
+			// operator, erro := appstorage.ReturnOperator(currentuser)
+			// if erro != nil {
+			// 	log.Println("cant delete local, Operator error:", erro)
+			// 	continue
+			// }
 
 			if err := operator.DeleteItemByID(itm.Itemid); err != nil {
 				log.Println("error with local delete:", err)
@@ -280,10 +303,10 @@ func UpdateDataFromServer(ctx context.Context) error {
 		// add itemid from server
 		newitem.ItemID = itm.Itemid
 
-		// // upload file ids into local item
+		// upload file ids into local item
 		// newitem.FileIDs = make([]int64, 0, len(itm.Filesid))
 		// for _, fileid := range itm.Filesid {
-		// 	if len(fileid) == 0 {
+		// 	if fileid == 0 {
 		// 		continue
 		// 	}
 		// 	newitem.FileIDs = append(newitem.FileIDs, fileid)
@@ -303,6 +326,7 @@ func UpdateDataFromServer(ctx context.Context) error {
 	// for every fileNoBody add in id to item
 	fls := make([]appstorage.File, 0, len(response.File))
 	flsids := make([]int64, 0, len(response.File))
+
 	for _, fle := range response.File {
 
 		if fle.Deleted {
@@ -481,24 +505,4 @@ func DeleteItems(ctx context.Context, itemids []int64) ([]int64, error) {
 		log.Println("deleted. but update from server error:", err)
 	}
 	return response.Itemid, nil
-}
-
-func ShowCatalog() (map[int64]*appstorage.Item, error) {
-	operator, err := appstorage.ReturnOperator(currentuser)
-	if err != nil {
-		return nil, fmt.Errorf("can't save local:%v", err)
-	}
-
-	operator.Mapa.Items = mapMutate(operator.Mapa.Items, appstorage.AddFileAddresses)
-	return operator.Mapa.Items, nil
-}
-
-func mapMutate[M ~map[int64]T, T any](m M, fn func(T) T) M {
-	if len(m) == 0 {
-		return m
-	}
-	for k, v := range m {
-		m[k] = fn(v)
-	}
-	return m
 }

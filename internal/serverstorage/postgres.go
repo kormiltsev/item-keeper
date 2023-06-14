@@ -312,9 +312,9 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 	getFilesUpdated := `
 	SELECT id, userid, itemid, deleted FROM itemkeeper_files
 	WHERE id IN(
-	  SELECT itemid FROM itemkeeper_changes 
+	  SELECT fileid FROM itemkeeper_changes 
 	  WHERE id > $1 AND userid = $2
-	)
+	) and id <> 0
 		;`
 
 	// get last update
@@ -363,6 +363,8 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 			return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
 		}
 		postg.Data.FilesNoBody = append(postg.Data.FilesNoBody, newfile)
+
+		log.Println("PG LU get files getFilesUpdated ")
 	}
 
 	postg.Data.User.LastUpdate = lu
