@@ -12,8 +12,18 @@ import (
 	"os"
 	"path/filepath"
 
+	configs "github.com/kormiltsev/item-keeper/internal/configsClient"
 	"golang.org/x/crypto/scrypt"
 )
+
+type Listik struct {
+	LastUpdate       int64
+	UserID           string
+	Items            map[int64]*Item
+	Files            map[int64]*File
+	LocalFileStorage string
+	ClientToken      string
+}
 
 func (op *Operator) SaveEncryptedCatalog(password string) error {
 
@@ -32,7 +42,7 @@ func (op *Operator) SaveEncryptedCatalog(password string) error {
 	}
 
 	// Generate the encryption key and IV from the password
-	seawater := sha256.Sum256([]byte(clientUniqueID))
+	seawater := sha256.Sum256([]byte(configs.ClientConfig.ClientToken))
 	key, iv := deriveKeyAndIV(seawater[:], []byte(password))
 
 	// Create the AES cipher block
@@ -53,17 +63,6 @@ func (op *Operator) SaveEncryptedCatalog(password string) error {
 	return nil
 }
 
-type Listik struct {
-	LastUpdate int64
-	UserID     string
-	Items      map[int64]*Item
-	Files      map[int64]*File
-	// ItemIDs    []int64
-	// Items      []Item // key = itemid
-	// FileIDs    []int64
-	// Files      []File // key = fileid
-}
-
 func (op *Operator) serialize() ([]byte, error) {
 	// Create a buffer to hold the serialized data
 	var buffer bytes.Buffer
@@ -79,20 +78,7 @@ func (op *Operator) serialize() ([]byte, error) {
 		UserID:     op.Mapa.UserID,
 		Items:      op.Mapa.Items,
 		Files:      op.Mapa.Files,
-		// ItemIDs:    make([]int64, 0),
-		// Items:      make([]Item, 0),
-		// FileIDs:    make([]int64, 0),
-		// Files:      make([]File, 0),
 	}
-
-	// for k, v := range op.Mapa.Items {
-	// 	tosave.ItemIDs = append(tosave.ItemIDs, k)
-	// 	tosave.Items = append(tosave.Items, *v)
-	// }
-	// for k, v := range op.Mapa.Files {
-	// 	tosave.FileIDs = append(tosave.FileIDs, k)
-	// 	tosave.Files = append(tosave.Files, *v)
-	// }
 
 	// Encode the catalog structure
 	if err := encoder.Encode(tosave); err != nil {
@@ -122,29 +108,29 @@ func deriveKeyAndIV(salts, password []byte) ([]byte, []byte) {
 	return key, iv
 }
 
-func ReadDecryptedCatalog(password string) (string, error) {
+func ReadDecryptedCatalog(password string) (string, int64, error) {
 
 	// create folder if not exists
 	err := os.MkdirAll(filepath.Dir(localcatalogaddress), os.ModePerm)
 	if err != nil {
-		return "", fmt.Errorf("can't create directory for catalog %s, error:%v", localcatalogaddress, err)
+		return "", 0, fmt.Errorf("can't create directory for catalog %s, error:%v", localcatalogaddress, err)
 	}
 
 	// Read the encrypted data from the file
 	encryptedData, err := ioutil.ReadFile(localcatalogaddress)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	// Generate the encryption key and IV from the password
-	seawater := sha256.Sum256([]byte(clientUniqueID))
+	seawater := sha256.Sum256([]byte(configs.ClientConfig.ClientToken))
 	key, iv := deriveKeyAndIV(seawater[:], []byte(password))
 
 	// Create the AES cipher block
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		log.Println("NewCipher", err)
-		return "", err
+		return "", 0, err
 	}
 
 	// Decrypt the encrypted data
@@ -155,7 +141,7 @@ func ReadDecryptedCatalog(password string) (string, error) {
 	return deserialize(decryptedData)
 }
 
-func deserialize(data []byte) (string, error) {
+func deserialize(data []byte) (string, int64, error) {
 	// Create a buffer with the serialized data
 	buffer := bytes.NewBuffer(data)
 
@@ -166,15 +152,11 @@ func deserialize(data []byte) (string, error) {
 	catalogue := Listik{
 		Items: map[int64]*Item{},
 		Files: map[int64]*File{},
-		// ItemIDs: make([]int64, 0),
-		// Items:   make([]Item, 0),
-		// FileIDs: make([]int64, 0),
-		// Files:   make([]File, 0),
 	}
 
 	err := decoder.Decode(&catalogue)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	Catalog.LastUpdate = catalogue.LastUpdate
@@ -183,12 +165,5 @@ func deserialize(data []byte) (string, error) {
 	Catalog.Items = catalogue.Items
 	Catalog.Files = catalogue.Files
 
-	// for i, v := range catalogue.ItemIDs {
-	// 	Catalog.Items[v] = &catalogue.Items[i]
-	// }
-	// for i, v := range catalogue.FileIDs {
-	// 	Catalog.Files[v] = &catalogue.Files[i]
-	// }
-
-	return Catalog.UserID, nil
+	return Catalog.UserID, Catalog.LastUpdate, nil
 }

@@ -7,10 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	configs "github.com/kormiltsev/item-keeper/internal/configsClient"
 )
 
 func userFolderPass(userid string) string {
-	return filepath.Join(localstorageaddress, userid)
+	return filepath.Join(configs.ClientConfig.FileFolder, userid)
 }
 
 func itemFolderPass(userid string, itemid int64) string {
@@ -22,7 +24,7 @@ func NewFileStruct() *File {
 }
 
 func deleteAllFilesAllUsers() {
-	err := os.RemoveAll(localstorageaddress)
+	err := os.RemoveAll(configs.ClientConfig.FileFolder)
 	if err != nil {
 		log.Println("can't delete Catalog directory:", err)
 	}

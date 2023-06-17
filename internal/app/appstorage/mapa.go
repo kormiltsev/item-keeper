@@ -7,12 +7,10 @@ import (
 	"sync"
 )
 
-var (
-	localstorageaddress = "./data/ClientLocalStorage"
-	localcatalogaddress = "./data/ClientLocalStorage/Catalog.dat"
-	clientUniqueID      = "someUniqueGeneratedID"
-)
+// internal application Data (snapshot)
+var localcatalogaddress = "./data/Catalog.dat"
 
+// maximum size of files
 var maxFileSize int64 = 5242880
 
 type List struct {
@@ -128,39 +126,6 @@ func (op *Operator) FindItemByParameter() error {
 				}
 			}
 		}
-		// // for every itemID in Catalog.parameters[searchKey]
-		// for i, itemid := range op.Mapa.parameters[key] {
-
-		// 	// is item already in answer list?
-		// 	if _, ok := op.Answer[itemid]; ok {
-		// 		continue
-		// 	}
-
-		// 	// if item deleted, so need to delete it from paramneters list
-		// 	itm, ok := op.Mapa.Items[itemid]
-		// 	if !ok {
-		// 		if i == len(op.Mapa.parameters[key])-1 {
-		// 			op.Mapa.parameters[key] = op.Mapa.parameters[key][:len(op.Mapa.parameters[key])-1]
-		// 		} else {
-		// 			list := op.Mapa.parameters[key]
-		// 			op.Mapa.parameters[key] = append(list[:i], list[i+1:]...)
-		// 		}
-		// 		continue
-		// 	}
-		// 	// search pKeysearch in item's Parameters
-		// 	for _, par := range itm.Parameters {
-
-		// 		// for every searchVal in search list
-		// 		for _, valsearche := range searchstrings {
-
-		// 			// find!
-		// 			if strings.Contains(par.Value, valsearche) {
-		// 				op.Answer[itemid] = op.Mapa.Items[itemid]
-		// 				op.AnswerAddresses[itemid] = op.addFilesAddresses(itemid)
-		// 			}
-		// 		}
-		// 	}
-		// }
 	}
 	return nil
 }
@@ -203,33 +168,6 @@ func (op *Operator) RegisterFilesToItems(files ...File) error {
 	}
 	return nil
 }
-
-// func (op *Operator) RegisterAddressToFiles(files ...File) error {
-// 	op.Mapa.mu.Lock()
-// 	defer op.Mapa.mu.Unlock()
-
-// 	if op.LastUpdate > Catalog.LastUpdate {
-// 		Catalog.LastUpdate = op.LastUpdate
-// 	}
-
-// 	for _, fle := range files {
-// 		// add file id to item in catalog
-// 		itm, ok := op.Mapa.Items[fle.ItemID]
-// 		if ok {
-// 			op.Mapa.Items[fle.ItemID].FileIDs = append(itm.FileIDs, fle.FileID)
-// 		}
-// 	}
-// 	return nil
-// }
-
-// func ReturnIDs() []int64 {
-// 	answer := make([]int64, len(Catalog.Items))
-// 	i := 0
-// 	for k := range Catalog.Items {
-// 		answer[i] = k
-// 	}
-// 	return answer
-// }
 
 func (op *Operator) DeleteItemByID(itemid int64) error {
 	if itemid <= 0 {

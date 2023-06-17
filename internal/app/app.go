@@ -18,7 +18,7 @@ import (
 func LoadFromFile(cryptokey string) error {
 	var err error
 	currentuserencryptokey = cryptokey
-	currentuser, err = appstorage.ReadDecryptedCatalog(cryptokey)
+	currentuser, currentlastupdate, err = appstorage.ReadDecryptedCatalog(cryptokey)
 	return err
 }
 
@@ -41,9 +41,8 @@ func SaveToFile() error {
 		log.Println("ReturnOperator:", err)
 		return err
 	}
-	err = op.SaveEncryptedCatalog(currentuserencryptokey)
 
-	return nil
+	return op.SaveEncryptedCatalog(currentuserencryptokey)
 }
 
 func NewAppItem() *appstorage.Item {
@@ -274,13 +273,6 @@ func UpdateDataFromServer(ctx context.Context) error {
 
 		// if item deleted
 		if itm.Deleted {
-			// log.Println("deleted da:", itm.Itemid)
-			// delete item in Catalog, request interface
-			// operator, erro := appstorage.ReturnOperator(currentuser)
-			// if erro != nil {
-			// 	log.Println("cant delete local, Operator error:", erro)
-			// 	continue
-			// }
 
 			if err := operator.DeleteItemByID(itm.Itemid); err != nil {
 				log.Println("error with local delete:", err)
@@ -303,15 +295,6 @@ func UpdateDataFromServer(ctx context.Context) error {
 		// add itemid from server
 		newitem.ItemID = itm.Itemid
 
-		// upload file ids into local item
-		// newitem.FileIDs = make([]int64, 0, len(itm.Filesid))
-		// for _, fileid := range itm.Filesid {
-		// 	if fileid == 0 {
-		// 		continue
-		// 	}
-		// 	newitem.FileIDs = append(newitem.FileIDs, fileid)
-		// }
-
 		// making answer slice of items
 		answer = append(answer, newitem)
 	}
@@ -328,7 +311,7 @@ func UpdateDataFromServer(ctx context.Context) error {
 	flsids := make([]int64, 0, len(response.File))
 
 	for _, fle := range response.File {
-
+		log.Println("response file: ", fle)
 		if fle.Deleted {
 			// copy to appstorage type
 			appfile := appstorage.NewFileStruct()
@@ -388,6 +371,7 @@ func requestFilesByFileID(tryNumber int, listOfFileids []int64) {
 
 // RequestFilesByFileID returns files ids dawnloaded successfully and error (if some of them not recieved)
 func RequestFilesByFileID(ctx context.Context, fileids ...int64) ([]int64, []int64, error) {
+	log.Println("requestfiles RequestFilesByFileID")
 	var err error
 	if len(fileids) == 0 {
 		log.Println("0 files requested")
@@ -499,10 +483,24 @@ func DeleteItems(ctx context.Context, itemids []int64) ([]int64, error) {
 		log.Println("FILE not deleted:", fileIDNotDeleted)
 	}
 
+	operator, err := appstorage.ReturnOperator(currentuser)
+	if err != nil {
+		return nil, fmt.Errorf("operator local:%v", err)
+	}
+
+	// delete local
+	for _, itmid := range itemids {
+		operator.DeleteItemByID(itmid)
+	}
+
 	// upload new status from server
 	// go UpdateDataFromServer(ctx)
 	if err := UpdateDataFromServer(ctx); err != nil {
 		log.Println("deleted. but update from server error:", err)
 	}
 	return response.Itemid, nil
+}
+
+func UploadConfigsApp() string {
+	return clientconnector.UploadConfigsCli()
 }

@@ -17,6 +17,7 @@ bin/
 
 # Dependency directories (remove the comment below to include it)
 back/
+tui/
 
 # IDEs directories
 .idea

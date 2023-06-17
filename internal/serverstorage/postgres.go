@@ -363,8 +363,6 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 			return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
 		}
 		postg.Data.FilesNoBody = append(postg.Data.FilesNoBody, newfile)
-
-		log.Println("PG LU get files getFilesUpdated ")
 	}
 
 	postg.Data.User.LastUpdate = lu

@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	app "github.com/kormiltsev/item-keeper/internal/app"
 	appstorage "github.com/kormiltsev/item-keeper/internal/app/appstorage"
@@ -24,6 +25,10 @@ var appmanager = manager{}
 var chclose chan struct{}
 
 func StartTui(ctx context.Context, ch chan struct{}) {
+
+	//upload configs
+	fmt.Println(app.UploadConfigsApp())
+
 	appmanager = manager{
 		chclose: ch,
 		ctx:     ctx,
@@ -35,40 +40,47 @@ func StartTui(ctx context.Context, ch chan struct{}) {
 	if err != nil {
 		log.Println("unexp err:", err)
 		close(appmanager.chclose)
+		return
 	}
+	response = deleteEndOfString(response)
 
-	if response == "q\n" {
+	if response == "q" {
 		appmanager.quit()
 		return
 	}
 
-	err = app.LoadFromFile(response[:len(response)-1])
+	err = app.LoadFromFile(response)
 	if err != nil {
 		appmanager.regPage()
 		return
 	}
+
+	app.SaveUserCryptoPass(response)
+
 	appmanager.openMenu()
 }
 
 func (appman *manager) regPage() {
-	fmt.Print("Please login or register\n[r] Registration\n[a] Autorisation\n[s] Secret word\n[q] for quit\n")
+	fmt.Print("Please login or register\n[r] Registration\n[a] Autorisation\n[s] Secret word again\n[q] for quit\n")
 	response, err := appman.reader.ReadString('\n')
 	if err != nil {
 		log.Println("unexp err:", err)
 		appman.quit()
 		return
 	}
+	response = deleteEndOfString(response)
+
 	switch response {
-	case "r\n":
+	case "r":
 		appman.regUser()
-	case "a\n":
+	case "a":
 		appman.autUser()
-	case "q\n":
+	case "q":
 		appman.quit()
-	case "s\n":
+	case "s":
 		StartTui(appman.ctx, chclose)
 	default:
-		log.Println("unknown command")
+		log.Println("unknown command:", response)
 		appman.regPage()
 	}
 }
@@ -88,6 +100,7 @@ func (appman *manager) regUser() {
 	if err != nil {
 		log.Println("unexp err:", err)
 		close(appmanager.chclose)
+		return
 	}
 
 	fmt.Print("enter PASSWORD:")
@@ -95,6 +108,7 @@ func (appman *manager) regUser() {
 	if err != nil {
 		log.Println("unexp err:", err)
 		close(appmanager.chclose)
+		return
 	}
 
 	fmt.Print("enter your SECRET WORD:")
@@ -102,14 +116,16 @@ func (appman *manager) regUser() {
 	if err != nil {
 		log.Println("unexp err:", err)
 		close(appmanager.chclose)
+		return
 	}
 
-	app.SaveUserCryptoPass(secretword[:len(secretword)-1])
+	app.SaveUserCryptoPass(deleteEndOfString(secretword))
 
-	err = app.RegUser(appman.ctx, login, pass)
+	err = app.RegUser(appman.ctx, deleteEndOfString(login), deleteEndOfString(pass))
 	if err != nil {
 		fmt.Println("Error:", err)
 		appman.regPage()
+		return
 	}
 
 	appman.openMenu()
@@ -121,6 +137,7 @@ func (appman *manager) autUser() {
 	if err != nil {
 		log.Println("unexp err:", err)
 		close(appmanager.chclose)
+		return
 	}
 
 	fmt.Print("enter PASSWORD:")
@@ -128,12 +145,23 @@ func (appman *manager) autUser() {
 	if err != nil {
 		log.Println("unexp err:", err)
 		close(appmanager.chclose)
+		return
 	}
 
-	err = app.AuthUser(appman.ctx, login, pass)
+	fmt.Print("enter your SECRET WORD:")
+	secretword, err := appman.reader.ReadString('\n')
+	if err != nil {
+		log.Println("unexp err:", err)
+		close(appmanager.chclose)
+		return
+	}
+	app.SaveUserCryptoPass(deleteEndOfString(secretword))
+
+	err = app.AuthUser(appman.ctx, deleteEndOfString(login), deleteEndOfString(pass))
 	if err != nil {
 		fmt.Print("Error:", err)
 		appman.regPage()
+		return
 	}
 
 	appman.openMenu()
@@ -141,25 +169,30 @@ func (appman *manager) autUser() {
 
 func (appman *manager) openMenu() {
 
-	fmt.Print("\n[ITEM KEEPER]\n[s] Search\n[a] Add new item\n[d] Delete item\n[c] Catalog print\n[q] Quit\n")
+	fmt.Print("\n[ITEM KEEPER]\n[s] Search\n[a] Add new item\n[d] Delete item\n[c] Catalog print\n[u] Update\n[q] Quit\n")
 	response, err := appman.reader.ReadString('\n')
 	if err != nil {
 		log.Println("unexp err:", err)
 		fmt.Print("unexpected err:", err)
 		appman.openMenu()
 	}
+	response = deleteEndOfString(response)
+
 	switch response {
-	case "s\n":
+	case "s":
 		appman.search()
-	case "a\n":
+	case "a":
 		appman.addNewItem()
-	case "d\n":
+	case "d":
 		appman.delItem()
-	case "q\n":
+	case "q":
 		appman.quit()
-	case "c\n":
+	case "c":
 		appman.showMapa()
+	case "u":
+		appman.update()
 	default:
+		log.Println("unknown command:", response)
 		appman.openMenu()
 	}
 }
@@ -167,7 +200,7 @@ func (appman *manager) openMenu() {
 func (appman *manager) showMapa() {
 	mapa, err := app.ShowCatalog()
 	if err != nil {
-		fmt.Println("nothing found")
+		fmt.Println("nothing was found")
 	}
 
 	fmt.Println("+---------------------------------------+")
@@ -197,7 +230,9 @@ func (appman *manager) search() {
 		appman.openMenu()
 	}
 
-	fmt.Printf("In [%s] looking for:", pkey[:len(pkey)-1])
+	pkey = deleteEndOfString(pkey)
+
+	fmt.Printf("In [%s] looking for:", pkey)
 	searchWord, err := appman.reader.ReadString('\n')
 	if err != nil {
 		log.Println("unexp err:", err)
@@ -210,8 +245,8 @@ func (appman *manager) search() {
 		searchSlise = make([]string, 0)
 	}
 
-	searchSlise = append(searchSlise, searchWord[:len(searchWord)-1])
-	searcher.Mapa[pkey[:len(pkey)-1]] = searchSlise
+	searchSlise = append(searchSlise, deleteEndOfString(searchWord))
+	searcher.Mapa[pkey] = searchSlise
 	// =====================================================================================
 
 	err = searcher.SearchItemByParameters()
@@ -236,59 +271,55 @@ func (appman *manager) addNewItem() {
 
 	// Add parameters
 	for {
-		fmt.Print("One more parameter? [y/n]")
-		response, err := appman.reader.ReadString('\n')
-		if err != nil {
-			log.Println("response, err := appman.reader.ReadString('\n'):", err)
-			appman.openMenu()
-		}
-		if response == "n\n" {
-			break
-		}
-
-		fmt.Print("Next parameter NAME: ")
+		fmt.Print("Enter name of parameter ([n] to skip): ")
 		pname, err := appman.reader.ReadString('\n')
 		if err != nil {
 			pname = "UNKNOWN"
 		}
-		newparam := appstorage.Parameter{
-			Name: pname[:len(pname)-1],
+		pname = deleteEndOfString(pname)
+
+		if pname == "n" {
+			break
 		}
 
-		fmt.Print("Next parameter VALUE: ")
+		newparam := appstorage.Parameter{
+			Name: pname,
+		}
+
+		fmt.Print("Next parameter's value: ")
 		pvalue, err := appman.reader.ReadString('\n')
 		if err != nil {
 			pvalue = "UNKNOWN"
 		}
-		newparam.Value = pvalue[:len(pvalue)-1]
+
+		newparam.Value = deleteEndOfString(pvalue)
 
 		newitem.Parameters = append(newitem.Parameters, newparam)
 	}
 
 	// Add files
 	for {
-		fmt.Print("Add one more file? [y/n]")
-		response, err := appman.reader.ReadString('\n')
-		if err != nil {
-			log.Println("response, err := appman.reader.ReadString('\n'):", err)
-			appman.openMenu()
-		}
-		if response == "n\n" {
-			break
-		}
-
-		fmt.Print("Input file address: ")
+		fmt.Print("Input file address ([n] to skip): ")
 		faddress, err := appman.reader.ReadString('\n')
 		if err != nil {
 			fmt.Print("Error, try again")
 			continue
 		}
-		newitem.UploadAddress = append(newitem.UploadAddress, faddress[:len(faddress)-1])
+		faddress = deleteEndOfString(faddress)
+
+		if faddress == "n" {
+			break
+		}
+
+		newitem.UploadAddress = append(newitem.UploadAddress, faddress)
 	}
 
 	fmt.Print("New Item is ready:\n")
 	for _, param := range newitem.Parameters {
 		fmt.Printf("%s: %s\n", param.Name, param.Value)
+	}
+	for _, files := range newitem.UploadAddress {
+		fmt.Printf("--file: %s\n", files)
 	}
 
 	fmt.Print("\nSave Item? [y/n]")
@@ -297,12 +328,17 @@ func (appman *manager) addNewItem() {
 		log.Println("response, err := appman.reader.ReadString('\n'):", err)
 		appman.openMenu()
 	}
-	if response == "y\n" || response == "Y\n" {
+	response = deleteEndOfString(response)
+
+	if response == "y" || response == "Y" {
 		err = app.AddNewItem(appman.ctx, newitem)
 		if err != nil {
 			fmt.Print("Error:", err)
 		}
+	} else {
+		fmt.Print("Item is not saved")
 	}
+
 	appman.openMenu()
 }
 
@@ -317,7 +353,7 @@ func (appman *manager) delItem() {
 		return
 	}
 
-	listItemIDToDelete[0], err = strconv.ParseInt(itemid[:len(itemid)-1], 10, 64)
+	listItemIDToDelete[0], err = strconv.ParseInt(deleteEndOfString(itemid), 10, 64)
 	if err != nil {
 		fmt.Print("Wrong id:", itemid)
 		appman.openMenu()
@@ -330,4 +366,21 @@ func (appman *manager) delItem() {
 		fmt.Print("This id was not deleted:", notdeletedlist, "the reason is:", err)
 	}
 	appman.openMenu()
+}
+
+func (appman *manager) update() {
+
+	err := app.UpdateDataFromServer(appman.ctx)
+	if err != nil {
+		fmt.Print("trying to update, but error: ", err)
+	} else {
+		fmt.Print("everithing updated")
+	}
+
+	appman.openMenu()
+}
+
+func deleteEndOfString(original string) string {
+	original = strings.ReplaceAll(original, "\r\n", "")
+	return strings.ReplaceAll(original, "\n", "")
 }
