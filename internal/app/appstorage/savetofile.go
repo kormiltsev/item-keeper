@@ -25,7 +25,7 @@ type Listik struct {
 	ClientToken      string
 }
 
-func (op *Operator) SaveEncryptedCatalog(password string) error {
+func (op *Operator) SaveEncryptedCatalog(password []byte) error {
 
 	// create folder if not exists
 	err := os.MkdirAll(filepath.Dir(localcatalogaddress), os.ModePerm)
@@ -43,7 +43,7 @@ func (op *Operator) SaveEncryptedCatalog(password string) error {
 
 	// Generate the encryption key and IV from the password
 	seawater := sha256.Sum256([]byte(configs.ClientConfig.ClientToken))
-	key, iv := deriveKeyAndIV(seawater[:], []byte(password))
+	key, iv := deriveKeyAndIV(seawater[:], password)
 
 	// Create the AES cipher block
 	block, err := aes.NewCipher(key)
@@ -108,7 +108,7 @@ func deriveKeyAndIV(salts, password []byte) ([]byte, []byte) {
 	return key, iv
 }
 
-func ReadDecryptedCatalog(password string) (string, int64, error) {
+func ReadDecryptedCatalog(password []byte) (string, int64, error) {
 
 	// create folder if not exists
 	err := os.MkdirAll(filepath.Dir(localcatalogaddress), os.ModePerm)
@@ -124,7 +124,7 @@ func ReadDecryptedCatalog(password string) (string, int64, error) {
 
 	// Generate the encryption key and IV from the password
 	seawater := sha256.Sum256([]byte(configs.ClientConfig.ClientToken))
-	key, iv := deriveKeyAndIV(seawater[:], []byte(password))
+	key, iv := deriveKeyAndIV(seawater[:], password)
 
 	// Create the AES cipher block
 	block, err := aes.NewCipher(key)
@@ -157,6 +157,10 @@ func deserialize(data []byte) (string, int64, error) {
 	err := decoder.Decode(&catalogue)
 	if err != nil {
 		return "", 0, err
+	}
+
+	if catalogue.Items == nil || len(catalogue.Items) == 0 || catalogue.Files == nil {
+		return "", 0, fmt.Errorf("read local catalog error")
 	}
 
 	Catalog.LastUpdate = catalogue.LastUpdate

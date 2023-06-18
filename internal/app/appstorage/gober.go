@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-func (item *Item) Encode(currentuserpassword string) (string, error) {
+func (item *Item) Encode(currentuserpassword []byte) (string, error) {
 
 	var inputBuffer bytes.Buffer
 	gob.NewEncoder(&inputBuffer).Encode(item)
@@ -27,7 +27,7 @@ func (item *Item) Encode(currentuserpassword string) (string, error) {
 	return tostor, nil
 }
 
-func shifu(currentuserpassword string, data []byte) (string, error) {
+func shifu(currentuserpassword, data []byte) (string, error) {
 	// key := sha256.Sum256([]byte(currentuserpassword))
 	key, err := deriveKeyFromPassword(currentuserpassword)
 	if err != nil {
@@ -50,7 +50,7 @@ func shifu(currentuserpassword string, data []byte) (string, error) {
 	return hex.EncodeToString(ciphertext), nil
 }
 
-func Decode(sourse string, currentuserpassword string) (*Item, error) {
+func Decode(sourse string, currentuserpassword []byte) (*Item, error) {
 	bts, err := deshifu(currentuserpassword, sourse)
 	if err != nil {
 		return nil, fmt.Errorf("can't decode string to bytes in gob decoder:%v", err)
@@ -68,7 +68,7 @@ func Decode(sourse string, currentuserpassword string) (*Item, error) {
 	return &answer, nil
 }
 
-func deshifu(currentuserpassword, data string) ([]byte, error) {
+func deshifu(currentuserpassword []byte, data string) ([]byte, error) {
 	// key := sha256.Sum256([]byte(currentuserpassword))
 	key, err := deriveKeyFromPassword(currentuserpassword)
 	if err != nil {
@@ -99,11 +99,11 @@ func deshifu(currentuserpassword, data string) ([]byte, error) {
 	return decrypted, nil
 }
 
-func deriveKeyFromPassword(password string) ([]byte, error) {
+func deriveKeyFromPassword(password []byte) ([]byte, error) {
 	salt := make([]byte, 16)
 
 	// Derive the key from the password using Argon2
-	key := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32)
+	key := argon2.IDKey(password, salt, 1, 64*1024, 4, 32)
 
 	return key, nil
 }

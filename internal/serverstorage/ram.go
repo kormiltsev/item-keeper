@@ -2,6 +2,7 @@ package serverstorage
 
 import "sync"
 
+// changeRow is to keep changes in RAM.
 type changeRow struct {
 	updated int64
 	userid  string

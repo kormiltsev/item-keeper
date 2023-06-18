@@ -20,6 +20,7 @@ func (itemserv *ItemServer) PutItems(ctx context.Context, in *pb.PutItemsRequest
 	serveritem := serverstorage.NewItem()
 	serveritem.UserID = in.Item.Userid
 	serveritem.Body = in.Item.Body
+	serveritem.ItemID = in.Item.Itemid
 
 	// prepare to server
 	tostor := serverstorage.NewToStorage()
@@ -31,7 +32,7 @@ func (itemserv *ItemServer) PutItems(ctx context.Context, in *pb.PutItemsRequest
 	err := tostor.DB.PutItems(ctx)
 	if err != nil {
 		if errors.Is(err, serverstorage.ErrEmptyRequest) {
-			log.Println("put items:", err)
+			log.Printf("put items (cli token = %v): %v", getClientToken(ctx), err)
 			return nil, status.Errorf(codes.InvalidArgument, `empty request`)
 		}
 		log.Println("Unknown error from storage: ", err)
@@ -50,10 +51,11 @@ func (itemserv *ItemServer) PutItems(ctx context.Context, in *pb.PutItemsRequest
 	return &response, nil
 }
 
+// UploadFile recieve File and save it.
 func (itemserv *ItemServer) UploadFile(ctx context.Context, in *pb.UploadFileRequest) (*pb.UploadFileResponse, error) {
 	// check all body recieved
 	if !checkHas(in.File.Body, in.File.Hash) {
-		log.Println("hash error")
+		log.Printf("hash error (cli token = %v)", getClientToken(ctx))
 		return nil, status.Errorf(codes.DataLoss, `hash not equal`)
 	}
 
@@ -66,6 +68,7 @@ func (itemserv *ItemServer) UploadFile(ctx context.Context, in *pb.UploadFileReq
 	tostorfile.FileID = in.File.Fileid
 	tostorfile.ItemID = in.File.Itemid
 	tostorfile.UserID = in.File.Userid
+	tostorfile.FileName = in.File.Filename
 	tostorfile.Body = in.File.Body
 
 	// create tostor
@@ -76,7 +79,7 @@ func (itemserv *ItemServer) UploadFile(ctx context.Context, in *pb.UploadFileReq
 	// upload file to server
 	err := tostor.DB.UploadFile(ctx)
 	if err != nil {
-		log.Println("can't upload file to server:", tostor.File.FileID, "error:", err)
+		log.Printf("can't upload file to server (cli token=%v):%d, error: %v", getClientToken(ctx), tostor.File.FileID, err)
 		return nil, status.Errorf(codes.Internal, `can't save file`)
 	}
 
@@ -91,12 +94,17 @@ func (itemserv *ItemServer) UploadFile(ctx context.Context, in *pb.UploadFileReq
 
 }
 
+// checkHas returns tru is hash the same.
 func checkHas(body []byte, hash []byte) bool {
 	sum := sha256.Sum256(body)
 	return bytes.Equal(sum[:], hash[:])
 }
 
+// UpdateByLastUpdate responds last updates (items and files IDs) with last update later than requested time stamp (now just additive int64)
 func (itemserv *ItemServer) UpdateByLastUpdate(ctx context.Context, in *pb.UpdateByLastUpdateRequest) (*pb.UpdateByLastUpdateResponse, error) {
+
+	log.Printf("lastupdate requested (cli token = %v):%d, for user: %s", getClientToken(ctx), in.Lastupdate, in.Userid)
+
 	// prepare to server
 	tostor := serverstorage.NewToStorage()
 	tostor.User.UserID = in.Userid
@@ -107,7 +115,7 @@ func (itemserv *ItemServer) UpdateByLastUpdate(ctx context.Context, in *pb.Updat
 	// to server
 	err := tostor.DB.UpdateByLastUpdate(ctx)
 	if err != nil {
-		log.Println("UpdateByLastUpdate err:", err)
+		log.Printf("UpdateByLastUpdate (cli token = %v) err:%v", getClientToken(ctx), err)
 	}
 
 	// create response
@@ -140,6 +148,7 @@ func (itemserv *ItemServer) UpdateByLastUpdate(ctx context.Context, in *pb.Updat
 	return &response, nil
 }
 
+// GetFileByFileID returns files (binary)
 func (itemserv *ItemServer) GetFileByFileID(ctx context.Context, in *pb.GetFileByFileIDRequest) (*pb.GetFileByFileIDResponse, error) {
 	// prepare to server
 	file := serverstorage.NewFile()
@@ -159,9 +168,10 @@ func (itemserv *ItemServer) GetFileByFileID(ctx context.Context, in *pb.GetFileB
 
 	// create response
 	responsefile := pb.File{
-		Itemid: tostor.File.ItemID,
-		Userid: tostor.File.UserID,
-		Fileid: tostor.File.FileID,
+		Itemid:   tostor.File.ItemID,
+		Userid:   tostor.File.UserID,
+		Fileid:   tostor.File.FileID,
+		Filename: tostor.File.FileName,
 	}
 
 	// copy body
@@ -180,7 +190,7 @@ func (itemserv *ItemServer) GetFileByFileID(ctx context.Context, in *pb.GetFileB
 	return &response, nil
 }
 
-// RegUser returns
+// DeleteEntity delete items or/and files. note: to delete files only send empty Itemid in request.
 func (itemserv *ItemServer) DeleteEntity(ctx context.Context, in *pb.DeleteEntityRequest) (*pb.DeleteEntityResponse, error) {
 
 	// create response
@@ -200,23 +210,6 @@ func (itemserv *ItemServer) DeleteEntity(ctx context.Context, in *pb.DeleteEntit
 	tostor := serverstorage.NewToStorage()
 	tostor.List = append(tostor.List, *serveritem)
 
-	// tostor.DB = serverstorage.NewStorager(tostor)
-
-	// // to server
-	// err := tostor.DB.DeleteFile(ctx)
-	// if err != nil {
-	// 	if errors.Is(err, serverstorage.ErrItemNotFound) {
-	// 		log.Println("file not found, skipped fileid:", fileid)
-	// 		continue
-	// 	}
-	// 	// return error
-	// 	response.Fileid = append(response.Fileid, tostor.File.FileID)
-	// 	log.Println("error delete file:", fileid)
-	// }
-
-	// operates items then
-	// tostor := serverstorage.NewToStorage()
-
 	// for every itemid from request
 	for _, itemid := range in.Itemid {
 		serveritem := serverstorage.NewItem()
@@ -232,19 +225,9 @@ func (itemserv *ItemServer) DeleteEntity(ctx context.Context, in *pb.DeleteEntit
 	err := tostor.DB.DeleteItems(ctx)
 	if err != nil {
 		// return error?
-		log.Println("error delete items:", err)
+		log.Printf("error delete items (cli token = %v): %v", getClientToken(ctx), err)
 		return nil, status.Errorf(codes.Internal, `can't delete`)
 	}
-
-	// deletion in postgres will updated using lastupdate. Files will deleted from storage using goroutines with no alerting
-	// for _, item := range tostor.List {
-	// 	if item.ItemID != 0 {
-	// 		response.Itemid = append(response.Itemid, item.ItemID)
-	// 	}
-	// 	if len(item.FilesID) != 0 {
-	// 		response.Fileid = append(response.Fileid, item.FilesID...)
-	// 	}
-	// }
 
 	return &response, nil
 }

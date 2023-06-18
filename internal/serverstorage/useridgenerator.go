@@ -8,6 +8,7 @@ import (
 	"strconv"
 )
 
+// variables is for generate uniq user ID
 var (
 	useridgen = []byte("usersids")
 	key       [32]byte
@@ -17,6 +18,7 @@ var (
 	initDone  bool
 )
 
+// initialize is for start.
 func initialize() error {
 	if initDone {
 		return nil
@@ -39,6 +41,7 @@ func initialize() error {
 	return nil
 }
 
+// shifu encrypts User ID
 func shifu(a int) (string, error) {
 	err := initialize()
 	if err != nil {

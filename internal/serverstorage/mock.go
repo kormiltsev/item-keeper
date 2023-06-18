@@ -16,10 +16,12 @@ import (
 	"time"
 )
 
+// Inretface for mock DB.
 type ToMock struct {
 	Data *ToStorage
 }
 
+// onechange is one row to changes list
 type onechange struct {
 	userid  string
 	updated int64
@@ -40,6 +42,7 @@ var listOfChanges = []onechange{}
 // for itemID uniq number
 var itemIDcounter int64
 
+// errFileIDExists internal error, double IDs
 var errFileIDExists = errors.New("file id exists")
 
 // RegUser register new user and returns UserID
@@ -205,6 +208,7 @@ func (mock *ToMock) UploadFile(ctx context.Context) error {
 	return err
 }
 
+// checkForDoublesFileID returns error if ID exists
 func checkForDoublesFileID(fileid int64) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -253,6 +257,7 @@ func (mock *ToMock) UpdateByLastUpdate(ctx context.Context) error {
 	return nil
 }
 
+// returnItemIDChanged returns ID of Item.
 func returnItemIDChanged(userid string, lastupdate int64) ([]int64, int64) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -270,6 +275,7 @@ func returnItemIDChanged(userid string, lastupdate int64) ([]int64, int64) {
 	return answer, luanswer
 }
 
+// returnItemsByIDs returns Item Data.
 func returnItemsByIDs(itemsids ...int64) []Item {
 	mu.Lock()
 	defer mu.Unlock()
@@ -301,6 +307,7 @@ func returnItemsByIDs(itemsids ...int64) []Item {
 	return answer
 }
 
+// GetFileByFileID returns file body by File ID.
 func (mock *ToMock) GetFileByFileID(ctx context.Context) error {
 	var err error
 
@@ -324,6 +331,7 @@ func (mock *ToMock) GetFileByFileID(ctx context.Context) error {
 	return nil
 }
 
+// readFile for local mock storage
 func readFile(fileaddress string) ([]byte, error) {
 	file, err := os.Open(fileaddress)
 
@@ -346,6 +354,7 @@ func readFile(fileaddress string) ([]byte, error) {
 	return bytes, err
 }
 
+// DeleteItems Removed Item and its file from mock DB.
 func (mock *ToMock) DeleteItems(ctx context.Context) error {
 
 	mu.Lock()
@@ -410,6 +419,7 @@ func (mock *ToMock) DeleteItems(ctx context.Context) error {
 // 	return deleteFilesByItemID(file.UserID, file.ItemID)
 // }
 
+// deleteFile deregister and removed file.
 func (mock *ToMock) deleteFile(fileid int64) error {
 
 	file, ok := Files[fileid]
@@ -421,13 +431,16 @@ func (mock *ToMock) deleteFile(fileid int64) error {
 	return deleteFileByFileID(file.ItemID, file.UserID, file.FileID)
 }
 
+// Connect starts mock BD.
 func (mock *ToMock) Connect(ctx context.Context) error {
 	return nil
 }
 
+// Disconnect close mock DB.
 func (mock *ToMock) Disconnect() {
 }
 
+// deleteFilesByItemID delete files for mock DB.
 func deleteFilesByItemID(userid string, itemid int64) error {
 	err := os.RemoveAll(itemFolderPass(userid, itemid))
 	if err != nil {
@@ -436,14 +449,17 @@ func deleteFilesByItemID(userid string, itemid int64) error {
 	return nil
 }
 
+// deleteFileByFileID for mock.
 func deleteFileByFileID(itemid int64, userid string, fileid int64) error {
 	return os.Remove(filepath.Join(itemFolderPass(userid, itemid), strconv.FormatInt(fileid, 10)))
 }
 
+// userFolderPass build path
 func userFolderPass(userid string) string {
 	return filepath.Join(storageaddress, userid)
 }
 
+// userFolderPass build path
 func itemFolderPass(userid string, itemid int64) string {
 	return filepath.Join(userFolderPass(userid), strconv.FormatInt(itemid, 10))
 }

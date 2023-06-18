@@ -2,6 +2,7 @@ package serverstorage
 
 import configs "github.com/kormiltsev/item-keeper/internal/configs"
 
+// ToStorage is an interface with pointer on DB.
 type ToStorage struct {
 	DB          Storager
 	User        *User
@@ -11,6 +12,7 @@ type ToStorage struct {
 	Error       error
 }
 
+// NewStorager build DB pointer depends on settings.
 func NewStorager(tostor *ToStorage) Storager {
 
 	if configs.ServiceConfig.DBlink == "mock" || configs.ServiceConfig.DBlink == "" {
@@ -26,6 +28,7 @@ func NewStorager(tostor *ToStorage) Storager {
 	return &postgra
 }
 
+// NewToStorage returns new interface.
 func NewToStorage() *ToStorage {
 	return &ToStorage{
 		User: &User{},
@@ -33,10 +36,12 @@ func NewToStorage() *ToStorage {
 	}
 }
 
+// NewItem returns empty Item.
 func NewItem() *Item {
 	return &Item{FilesID: make([]int64, 0)}
 }
 
+// NewItem returns empty File.
 func NewFile() *File {
 	return &File{Body: make([]byte, 0)}
 }

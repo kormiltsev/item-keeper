@@ -11,8 +11,10 @@ import (
 	configs "github.com/kormiltsev/item-keeper/internal/configs"
 )
 
+// storageaddress uses for local file storage.
 var storageaddress = "./data/ServerStorage"
 
+// fileUploadToFileStorage store file.
 func fileUploadToFileStorage(file *File) {
 
 	if configs.ServiceConfig.S3key != "" {
@@ -29,6 +31,7 @@ func fileUploadToFileStorage(file *File) {
 	}
 }
 
+// fileUploadToFileStorageLocal store file on file server.
 func fileUploadToFileStorageLocal(file *File) error {
 	// create path localstorage/userid/itemid
 	path := filepath.Join(storageaddress, file.UserID)
@@ -49,6 +52,7 @@ func fileUploadToFileStorageLocal(file *File) error {
 	return nil
 }
 
+// fileDownloadFromStorage returns file.
 func fileDownloadFromStorage(file *File) ([]byte, error) {
 	// storage switcher
 	if configs.ServiceConfig.S3key != "" {
@@ -64,6 +68,7 @@ func fileDownloadFromStorage(file *File) ([]byte, error) {
 	return readFileLocal(path)
 }
 
+// readFileLocal returns file from local file storage.
 func readFileLocal(fileaddress string) ([]byte, error) {
 	file, err := os.Open(fileaddress)
 
@@ -86,6 +91,7 @@ func readFileLocal(fileaddress string) ([]byte, error) {
 	return bytes, err
 }
 
+// deleteFilesByID removed file.
 func deleteFilesByID(tostor *ToStorage) {
 	// storage switcher
 	if configs.ServiceConfig.S3key != "" {
@@ -103,6 +109,7 @@ func deleteFilesByID(tostor *ToStorage) {
 	}
 }
 
+// deleteFileFromStorage removed from local storage.
 func deleteFileFromStorage(file *File) error {
 	// create path localstorage/userid/itemid
 

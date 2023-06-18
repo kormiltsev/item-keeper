@@ -420,3 +420,14 @@
 {"level":"info","timestamp":"May 08 17:57:42.310355","message":"add item error from server: rpc error: code = Unavailable desc = error reading from server: EOF"}
 {"level":"info","timestamp":"May 08 17:57:42.310791","message":"error in additind item to server: rpc error: code = Unavailable desc = error reading from server: EOF"}
 {"level":"info","timestamp":"May 08 22:37:06.643398","message":"done"}
+{"level":"info","timestamp":"Jun 17 20:34:28.367709","message":"configs after flags: {   }"}
+{"level":"info","timestamp":"Jun 17 20:34:28.368615","message":"configs after ENV: {   }"}
+{"level":"info","timestamp":"Jun 17 20:34:28.368637","message":"configs uploaded: &{188.227.85.116:3333 ./data/keeper darwin }"}
+{"level":"info","timestamp":"Jun 17 20:35:12.294633","message":"response file:  itemid:7  userid:\"54aff12d159bd34d710ea9f97ad1a0c66f\"  fileid:4"}
+{"level":"info","timestamp":"Jun 17 20:35:12.294768","message":"requestfiles RequestFilesByFileID"}
+{"level":"info","timestamp":"Jun 17 20:35:12.294984","message":"starts file upload:  [./data/sourceClient/Jocker.jpeg]"}
+{"level":"info","timestamp":"Jun 17 20:35:12.801712","message":"starts SaveFileLocal, file name: win.jpg"}
+{"level":"info","timestamp":"Jun 17 20:35:12.802053","message":"save file USERID: 54aff12d159bd34d710ea9f97ad1a0c66f"}
+{"level":"info","timestamp":"Jun 17 20:35:12.803568","message":"1/1 files downloaded"}
+{"level":"info","timestamp":"Jun 17 20:35:13.066831","message":"starts SaveFileLocal, file name: Jocker.jpeg"}
+{"level":"info","timestamp":"Jun 17 20:35:13.067062","message":"save file USERID: 54aff12d159bd34d710ea9f97ad1a0c66f"}

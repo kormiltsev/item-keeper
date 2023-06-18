@@ -1,27 +1,33 @@
+// app package is for manage Items and Users from client side
 package app
 
 import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"log"
+	"path/filepath"
 	"time"
 
 	appstorage "github.com/kormiltsev/item-keeper/internal/app/appstorage"
 	clientconnector "github.com/kormiltsev/item-keeper/internal/client"
+	configs "github.com/kormiltsev/item-keeper/internal/configsClient"
 	pb "github.com/kormiltsev/item-keeper/internal/server/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func LoadFromFile(cryptokey string) error {
+// LoadFromFile upload and decrypted user's data from local file if available.
+func LoadFromFile(cryptokey []byte) error {
 	var err error
 	currentuserencryptokey = cryptokey
 	currentuser, currentlastupdate, err = appstorage.ReadDecryptedCatalog(cryptokey)
 	return err
 }
 
+// ShowCatalog just returns all of items.
 func ShowCatalog() (map[int64]*appstorage.Item, error) {
 	operator, err := appstorage.ReturnOperator(currentuser)
 	if err != nil {
@@ -30,11 +36,18 @@ func ShowCatalog() (map[int64]*appstorage.Item, error) {
 
 	err = operator.UploadFilesAddresses()
 	if err != nil {
-		return nil, fmt.Errorf("can't show catalog:%v", err)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Millisecond*5000))
+		defer cancel()
+
+		currentlastupdate = 0
+		if err := UpdateDataFromServer(ctx); err != nil {
+			return nil, fmt.Errorf("can't show catalog:%v", err)
+		}
 	}
 	return operator.Mapa.Items, nil
 }
 
+// SaveToFile encode and save to file all of items. Uses before exit.
 func SaveToFile() error {
 	op, err := appstorage.ReturnOperator(currentuser)
 	if err != nil {
@@ -45,10 +58,12 @@ func SaveToFile() error {
 	return op.SaveEncryptedCatalog(currentuserencryptokey)
 }
 
+// NewAppItem returns empty Item
 func NewAppItem() *appstorage.Item {
 	return &appstorage.Item{}
 }
 
+// AddNewItem gets new item and push it to server.
 func AddNewItem(ctx context.Context, appitem *appstorage.Item) error {
 	// appitem := presetItem()
 	appitem.UserID = currentuser
@@ -113,7 +128,9 @@ func AddNewItem(ctx context.Context, appitem *appstorage.Item) error {
 
 }
 
+// uploadFileFromItemToServer prepares, encode and upload files (array) in separate goroutine
 func uploadFileFromItemToServer(appitem *appstorage.Item) {
+
 	if len(appitem.UploadAddress) == 0 {
 		return
 	}
@@ -123,20 +140,40 @@ func uploadFileFromItemToServer(appitem *appstorage.Item) {
 	ctx := context.Background()
 	// prepare and send files after NewItemID was created by server
 	for i, fileaddress := range appitem.UploadAddress {
+
+		// empty in case of edditing iten and no need to upload file again. There might be new file to upload
+		if fileaddress == "" {
+			continue
+		}
+
 		file := appstorage.NewFileStruct()
 		file.FileID = int64(i) // temporary id to upload
 		file.ItemID = appitem.ItemID
 		file.UserID = appitem.UserID
 		file.Address = fileaddress
 
-		err := encodeAndUploadFileToServer(ctx, file)
+		// file name encrypto
+		// file.FileName = filepath.Base(fileaddress)
+		flenamebytes, err := appstorage.FileEncrypt([]byte(filepath.Base(fileaddress)), currentuserencryptokey)
+		if err == nil {
+			file.FileName = base64.StdEncoding.EncodeToString(flenamebytes)
+		} else {
+			flenamebytes, err = appstorage.FileEncrypt([]byte("file"), currentuserencryptokey)
+			if err != nil {
+				file.FileName = "file"
+			} else {
+				file.FileName = base64.StdEncoding.EncodeToString(flenamebytes)
+			}
+		}
+
+		err = encodeAndUploadFileToServer(ctx, file)
 		if err != nil {
 			// send error to error channel
 			//
 			// ===========================
 
 			log.Printf("File %s not uploaded:%v", fileaddress, err)
-			return
+			continue
 		}
 
 		// check if other user authorized local already? then no need to save file local
@@ -166,6 +203,7 @@ func uploadFileFromItemToServer(appitem *appstorage.Item) {
 	}
 }
 
+// encodeAndUploadFileToServer prepare file (by one) to upload
 func encodeAndUploadFileToServer(ctx context.Context, file *appstorage.File) error {
 	// read and encode file
 	err := file.PrepareFile(currentuserencryptokey)
@@ -177,7 +215,9 @@ func encodeAndUploadFileToServer(ctx context.Context, file *appstorage.File) err
 	return uploadEncryptedFileToServer(ctx, file)
 }
 
+// uploadEncryptedFileToServer upload file to server
 func uploadEncryptedFileToServer(ctx context.Context, file *appstorage.File) error {
+	var err error
 
 	hash := sha256.Sum256(file.Body)
 
@@ -185,11 +225,12 @@ func uploadEncryptedFileToServer(ctx context.Context, file *appstorage.File) err
 	// buil request
 	req := pb.UploadFileRequest{
 		File: &pb.File{
-			Itemid: file.ItemID,
-			Userid: file.UserID,
-			Fileid: file.FileID,
-			Body:   file.Body,
-			Hash:   hash[:],
+			Itemid:   file.ItemID,
+			Userid:   file.UserID,
+			Fileid:   file.FileID,
+			Filename: file.FileName,
+			Body:     file.Body,
+			Hash:     hash[:],
 		},
 	}
 
@@ -232,7 +273,7 @@ func uploadEncryptedFileToServer(ctx context.Context, file *appstorage.File) err
 	return nil
 }
 
-// UpdateDataFromServer request lastUpdate from server and save items rfom response local
+// UpdateDataFromServer request lastUpdate from server and save items from response local.
 func UpdateDataFromServer(ctx context.Context) error {
 
 	// buil request
@@ -348,6 +389,7 @@ func UpdateDataFromServer(ctx context.Context) error {
 	return nil
 }
 
+// requestFilesByFileID request for files with number of attempts.
 func requestFilesByFileID(tryNumber int, listOfFileids []int64) {
 	if len(listOfFileids) == 0 {
 		return
@@ -371,7 +413,6 @@ func requestFilesByFileID(tryNumber int, listOfFileids []int64) {
 
 // RequestFilesByFileID returns files ids dawnloaded successfully and error (if some of them not recieved)
 func RequestFilesByFileID(ctx context.Context, fileids ...int64) ([]int64, []int64, error) {
-	log.Println("requestfiles RequestFilesByFileID")
 	var err error
 	if len(fileids) == 0 {
 		log.Println("0 files requested")
@@ -380,8 +421,8 @@ func RequestFilesByFileID(ctx context.Context, fileids ...int64) ([]int64, []int
 
 	readyfiles := make([]int64, 0)
 	errorfiles := make([]int64, 0)
-	for _, fileid := range fileids {
 
+	for _, fileid := range fileids {
 		err = requestFileByFileID(ctx, fileid)
 		if err == nil {
 			readyfiles = append(readyfiles, fileid)
@@ -398,6 +439,7 @@ func RequestFilesByFileID(ctx context.Context, fileids ...int64) ([]int64, []int
 	return readyfiles, nil, nil
 }
 
+// requestFileByFileID request server for file
 func requestFileByFileID(ctx context.Context, fileid int64) error {
 	// buil request
 	req := pb.GetFileByFileIDRequest{
@@ -436,6 +478,21 @@ func requestFileByFileID(ctx context.Context, fileid int64) error {
 	appfile.FileID = response.File.Fileid
 	appfile.ItemID = response.File.Itemid
 	appfile.UserID = response.File.Userid
+
+	// // file name decrypto
+	appfile.FileName = response.File.Filename
+	// flenamebytes, err := base64.StdEncoding.DecodeString(response.File.Filename)
+	// if err != nil {
+	// 	appfile.FileName = "file"
+	// } else {
+	// 	flenamebytes, err = appstorage.FileDecrypt(flenamebytes, currentuserencryptokey)
+	// 	if err != nil {
+	// 		appfile.FileName = "file"
+	// 	} else {
+	// 		appfile.FileName = string(flenamebytes)
+	// 	}
+	// }
+
 	appfile.Body = make([]byte, len(response.File.Body))
 	copy(appfile.Body, response.File.Body)
 
@@ -447,12 +504,13 @@ func requestFileByFileID(ctx context.Context, fileid int64) error {
 	return nil
 }
 
+// checkHas check is hash of recieved file (binary)
 func checkHas(body []byte, hash []byte) bool {
 	sum := sha256.Sum256(body)
 	return bytes.Equal(sum[:], hash)
 }
 
-// DeleteItems return errored items and error
+// DeleteItems requests to delete and returns errored items and error.
 func DeleteItems(ctx context.Context, itemids []int64) ([]int64, error) {
 	// if empty
 	if len(itemids) == 0 {
@@ -501,6 +559,78 @@ func DeleteItems(ctx context.Context, itemids []int64) ([]int64, error) {
 	return response.Itemid, nil
 }
 
+// UploadConfigsApp upload app configs from the beginning.
 func UploadConfigsApp() string {
 	return clientconnector.UploadConfigsCli()
+}
+
+// PrintVersion returns application info.
+func PrintVersion() string {
+	return fmt.Sprintf("[ iKeeper ]\n%s", configs.PrintVersion())
+}
+
+// DeleteFiles request server to delete files.
+func DeleteFiles(ctx context.Context, itemFilesToDelete *appstorage.Item) error {
+	// if empty
+	if len(itemFilesToDelete.FileIDs) == 0 {
+		return nil
+	}
+
+	// build request
+	req := pb.DeleteEntityRequest{
+		Userid: currentuser,
+		Fileid: itemFilesToDelete.FileIDs,
+	}
+
+	// gRPC
+	cc := clientconnector.NewClientConnector(ctx)
+	cl := *cc.Client
+
+	// run request
+	response, err := cl.DeleteEntity(cc.Ctx, &req)
+	if len(response.Fileid) == 0 && err != nil {
+		log.Println("no error items returned, but error:%v", err)
+		return nil
+	}
+
+	operator, err := appstorage.ReturnOperator(currentuser)
+	if err != nil {
+		return fmt.Errorf("internal error:%v", err)
+	}
+
+	// delete local
+	for _, fleid := range itemFilesToDelete.FileIDs {
+		operator.DeleteFileByID(fleid)
+	}
+
+	// upload new status from server
+	// go UpdateDataFromServer(ctx)
+	if err := UpdateDataFromServer(ctx); err != nil {
+		log.Println("deleted. but update from server error:", err)
+	}
+	return nil
+}
+
+// EditItem push to server new body of item. note: If Item ID doesn't set server will save as new item.
+func EditItem(ctx context.Context, item, filestodelete *appstorage.Item) error {
+
+	// push item with item ID and new files addresses
+	err := AddNewItem(ctx, item)
+	if err != nil {
+		log.Println("edit item error:", err)
+		return err
+	}
+
+	// delete file by fileid from server and from local
+	return DeleteFiles(ctx, filestodelete)
+}
+
+// ReturnFileIDByAddress just returns File ID by local address
+func ReturnFileIDByAddress(address string) int64 {
+	operator, err := appstorage.ReturnOperator(currentuser)
+	if err != nil {
+		return 0
+	}
+
+	return operator.ReturnFileIDByAddress(address)
 }

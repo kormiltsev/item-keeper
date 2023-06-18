@@ -8,10 +8,12 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// Blogs contains logger
 type Blogs struct {
 	Logger *zap.Logger
 }
 
+// NewLog presets new logger.
 func NewLog(lodFileName string) *Blogs {
 	rawJSON, err := os.ReadFile(lodFileName)
 	if err != nil {

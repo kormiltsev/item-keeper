@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// clientTokenName server is looking for in gRPC request.
 const clientTokenName = "CLIENT_TOKEN"
 
 // unaryInterceptor searche for userid in token
@@ -28,7 +29,7 @@ func unaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServ
 	}
 
 	// check every of values
-	for _, token := range values {
+	for _, token := range getClientToken(ctx) {
 		if len(token) == 0 {
 			err = status.Errorf(codes.Unauthenticated, "token empty")
 		}
@@ -38,10 +39,16 @@ func unaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServ
 		return nil, err
 	}
 
-	// check is token valid here
+	// check is token valid here (?)
 	//
 	// ========================
 
 	// OK
 	return handler(ctx, req)
+}
+
+// getClientToken returns list of Tokens
+func getClientToken(ctx context.Context) []string {
+	md, _ := metadata.FromIncomingContext(ctx)
+	return md.Get(clientTokenName)
 }

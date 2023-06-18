@@ -12,13 +12,15 @@ import (
 	configs "github.com/kormiltsev/item-keeper/internal/configs"
 )
 
+// DB connection.
 var db *pgxpool.Pool
 
-// ToPostgres is interface
+// ToPostgres is interface for Postgres.
 type ToPostgres struct {
 	Data *ToStorage
 }
 
+// List of presets SQL requests.
 const (
 	registerChanges = `
 INSERT INTO itemkeeper_changes(userid, itemid, fileid, updateded_at)
@@ -38,6 +40,7 @@ WHERE id = $3
 		;`
 )
 
+// RegUser create user and returns unique user ID = Primary Key.
 func (postg *ToPostgres) RegUser(ctx context.Context) error {
 	if postg.Data.User.Login == "" || postg.Data.User.Password == "" {
 		return ErrEmptyRequest
@@ -49,9 +52,6 @@ func (postg *ToPostgres) RegUser(ctx context.Context) error {
 		VALUES ($1, $2, NOW())
 		RETURNING id
 	;`
-
-	// ON CONFLICT (login)
-	// DO NOTHING
 
 	regUserSetID := `
 	UPDATE itemkeeper_users
@@ -124,25 +124,23 @@ func (postg *ToPostgres) RegUser(ctx context.Context) error {
 		return fmt.Errorf("storage BD err:%v", err)
 	}
 
-	// // send to client current server time
-	// postg.Data.User.LastUpdate = lu
-
 	return nil
 }
 
+// AuthUser returns User ID. Error if login and password not found.
 func (postg *ToPostgres) AuthUser(ctx context.Context) error {
 	if postg.Data.User.Login == "" || postg.Data.User.Password == "" {
 		return ErrEmptyRequest
 	}
 
 	// write to postgres
-	regUser := `
+	authUser := `
 		SELECT id, password, userid FROM itemkeeper_users WHERE login=$1
 	;`
 
 	var id int
 	var passwd, userID string
-	err := db.QueryRow(ctx, regUser, postg.Data.User.Login).Scan(&id, &passwd, &userID)
+	err := db.QueryRow(ctx, authUser, postg.Data.User.Login).Scan(&id, &passwd, &userID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrLoginNotFound
@@ -162,6 +160,7 @@ func (postg *ToPostgres) AuthUser(ctx context.Context) error {
 	return nil
 }
 
+// PutItems rewrite item if item.ItemID != 0, and add new if does. Returns item with Item ID.
 func (postg *ToPostgres) PutItems(ctx context.Context) error {
 	// error if empty
 	if len(postg.Data.List) == 0 {
@@ -238,8 +237,8 @@ func (postg *ToPostgres) UploadFile(ctx context.Context) error {
 
 	// write to postgres
 	putFile := `
-			INSERT INTO itemkeeper_files(userid, itemid, deleted)
-			VALUES ($1, $2, FALSE)
+			INSERT INTO itemkeeper_files(userid, itemid, filename, deleted)
+			VALUES ($1, $2, $3, FALSE)
 			RETURNING id
 		;`
 
@@ -249,7 +248,7 @@ func (postg *ToPostgres) UploadFile(ctx context.Context) error {
 	}
 
 	var id int64
-	err = tx.QueryRow(ctx, putFile, postg.Data.File.UserID, postg.Data.File.ItemID).Scan(&id)
+	err = tx.QueryRow(ctx, putFile, postg.Data.File.UserID, postg.Data.File.ItemID, postg.Data.File.FileName).Scan(&id)
 	// _, er := tx.Exec(ctx, putFile, postg.Data.File.UserID, postg.Data.File.ItemID, false)
 	if err != nil {
 		log.Println("PG putFile error:", err)
@@ -294,8 +293,8 @@ func (postg *ToPostgres) UploadFile(ctx context.Context) error {
 	return nil
 }
 
+// UpdateByLastUpdate get last update from client and returns all items and File IDs witch was edited after last update date.
 func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
-	log.Println("lastupdate requested:", postg.Data.User.LastUpdate, "for user:", postg.Data.User.UserID)
 	postg.Data.List = postg.Data.List[:0]
 	postg.Data.FilesNoBody = postg.Data.FilesNoBody[:0]
 
@@ -369,10 +368,11 @@ func (postg *ToPostgres) UpdateByLastUpdate(ctx context.Context) error {
 	return nil
 }
 
+// GetFileByFileID returns full file info and its body by File ID.
 func (postg *ToPostgres) GetFileByFileID(ctx context.Context) error {
 
 	getFile := `
-	SELECT id, userid, itemid, deleted FROM itemkeeper_files
+	SELECT id, userid, itemid, filename, deleted FROM itemkeeper_files
 	WHERE id = $1
 		;`
 
@@ -382,6 +382,7 @@ func (postg *ToPostgres) GetFileByFileID(ctx context.Context) error {
 		&fileNoBody.FileID,
 		&fileNoBody.UserID,
 		&fileNoBody.ItemID,
+		&fileNoBody.FileName,
 		&fileNoBody.Deleted,
 	)
 	if err != nil {
@@ -401,12 +402,14 @@ func (postg *ToPostgres) GetFileByFileID(ctx context.Context) error {
 		}
 		// add itemId, coze itemId is not mandatory in request
 		postg.Data.File.ItemID = fileNoBody.ItemID
+		postg.Data.File.FileName = fileNoBody.FileName
 		return nil
 	}
 
 	return ErrItemNotFound
 }
 
+// DeleteItems marks Item and Files in tables as Deleted. Starts to delete files by File ID related this Item.
 func (postg *ToPostgres) DeleteItems(ctx context.Context) error {
 	// delete items
 	if len(postg.Data.List) == 0 {
@@ -423,36 +426,10 @@ func (postg *ToPostgres) DeleteItems(ctx context.Context) error {
 	WHERE id = $1 AND userid = $2
 	;`
 
-	// delete file
-	deleteFile := `
-	UPDATE itemkeeper_files
-	SET deleted = TRUE
-	WHERE itemid = $1 AND userid = $2
-	RETURNING id
-	;`
-
-	// delete file by fileid
-	deleteFileByID := `
-	UPDATE itemkeeper_files
-	SET deleted = TRUE
-	WHERE id = $1 AND userid = $2
-	RETURNING itemid
-	;`
-
 	getItem := `
 	SELECT deleted FROM itemkeeper_items
 	WHERE id = $1 AND userid = $2
 		;`
-
-	getFile := `
-	SELECT deleted FROM itemkeeper_files
-	WHERE itemid = $1 AND userid = $2
-	;`
-
-	getFileByID := `
-	SELECT deleted FROM itemkeeper_files
-	WHERE id = $1 AND userid = $2
-	;`
 
 	tx, err := db.Begin(ctx)
 	if err != nil {
@@ -465,43 +442,14 @@ func (postg *ToPostgres) DeleteItems(ctx context.Context) error {
 			continue
 		}
 
-		// if there is file id so need to delete onli this file (don't delete item)
+		// if there is file id so need to delete only this file (don't delete item)
 		for _, fileIDToDelete := range itemtodelete.FilesID {
 
-			// delete file
-			rows, err := tx.Query(ctx, deleteFileByID, fileIDToDelete, itemtodelete.UserID)
-			switch err {
-			case nil:
-			case pgx.ErrNoRows:
-				log.Println("deleteItem item not found to delete", itemtodelete.ItemID)
-			default:
-				// try to get file with error
-				var deleted bool
-				err = tx.QueryRow(ctx, getFileByID, fileIDToDelete, itemtodelete.UserID).Scan(&deleted)
-				if err == nil && !deleted {
-					log.Println("deletion error but file exists")
-					er := tx.Rollback(ctx)
-					if er != nil {
-						log.Println("deleteFile and query Rollback err:", er)
-						return er
-					}
-					return err
-				}
-				// if file not found of mark 'deleted' so ok, move next
+			// delete by file id:
+			err = postg.deleteFile(ctx, tx, fileIDToDelete, 0, itemtodelete.UserID)
+			if err != nil {
+				return err
 			}
-
-			for rows.Next() {
-				var newfile = File{
-					FileID: fileIDToDelete,
-					UserID: itemtodelete.UserID,
-				}
-				err := rows.Scan(&newfile.ItemID)
-				if err != nil {
-					return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
-				}
-				postg.Data.FilesNoBody = append(postg.Data.FilesNoBody, newfile)
-			}
-
 		}
 
 		// delete item
@@ -522,40 +470,11 @@ func (postg *ToPostgres) DeleteItems(ctx context.Context) error {
 			}
 		}
 
-		// delete item
-		rows, err := tx.Query(ctx, deleteFile, itemtodelete.ItemID, itemtodelete.UserID)
-		switch err {
-		case nil:
-		case pgx.ErrNoRows:
-			log.Println("deleteItem item not found to delete", itemtodelete.ItemID)
-		default:
-			// try to get file with error
-			var deleted bool
-			err = tx.QueryRow(ctx, getFile, itemtodelete.ItemID, itemtodelete.UserID).Scan(&deleted)
-			if err == nil && !deleted {
-				log.Println("deletion error but file exists")
-				er := tx.Rollback(ctx)
-				if er != nil {
-					log.Println("deleteFile and query Rollback err:", er)
-					return er
-				}
-				return err
-			}
-			// if file not found of mark 'deleted' so ok, move next
+		// delete file by itemid
+		err = postg.deleteFile(ctx, tx, 0, itemtodelete.ItemID, itemtodelete.UserID)
+		if err != nil {
+			return err
 		}
-
-		for rows.Next() {
-			var newfile = File{
-				UserID: itemtodelete.UserID,
-				ItemID: itemtodelete.ItemID,
-			}
-			err := rows.Scan(&newfile.FileID)
-			if err != nil {
-				return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
-			}
-			postg.Data.FilesNoBody = append(postg.Data.FilesNoBody, newfile)
-		}
-
 	}
 
 	// register changes
@@ -586,7 +505,55 @@ func (postg *ToPostgres) DeleteItems(ctx context.Context) error {
 	return nil
 }
 
-// Connect make connection with DB or panic
+// deleteFile marks files as 'deleted'.
+func (postg *ToPostgres) deleteFile(ctx context.Context, tx pgx.Tx, fileid, itemid int64, userid string) error {
+	deleteFile := `
+	UPDATE itemkeeper_files
+	SET deleted = TRUE
+	WHERE (id = $1 OR itemid = $2) AND userid = $3
+	RETURNING id, itemid
+	;`
+
+	getFileByID := `
+	SELECT deleted FROM itemkeeper_files
+	WHERE (id = $1 OR itemid = $2) AND userid = $3
+	;`
+
+	rows, err := tx.Query(ctx, deleteFile, fileid, itemid, userid)
+	switch err {
+	case nil:
+	case pgx.ErrNoRows:
+		log.Println("deleteItem item not found to delete", fileid, itemid)
+	default:
+		// try to get file with error
+		var deleted bool
+		err = tx.QueryRow(ctx, getFileByID, fileid, itemid, userid).Scan(&deleted)
+		if err == nil && !deleted {
+			log.Println("deletion error but file exists")
+			er := tx.Rollback(ctx)
+			if er != nil {
+				log.Println("deleteFile and query Rollback err:", er)
+				return er
+			}
+			return err
+		}
+		// if file not found of mark 'deleted' so ok, move next
+	}
+
+	for rows.Next() {
+		var newfile = File{
+			UserID: userid,
+		}
+		err := rows.Scan(&newfile.FileID, &newfile.ItemID)
+		if err != nil {
+			return fmt.Errorf("POSTGRES rows.Scan error: %v", err)
+		}
+		postg.Data.FilesNoBody = append(postg.Data.FilesNoBody, newfile)
+	}
+	return nil
+}
+
+// Connect make connection with PostgreSQL.
 func (postg *ToPostgres) Connect(ctx context.Context) error {
 
 	// connect to file storage
@@ -649,6 +616,7 @@ func (postg *ToPostgres) Connect(ctx context.Context) error {
 			userid TEXT not null,
 			itemid BIGINT not null,
 			fileid BIGINT,
+			filename TEXT,
 			deleted BOOLEAN,
 			uploaded_at TIMESTAMPTZ DEFAULT Now()
 		);
@@ -675,7 +643,7 @@ func (postg *ToPostgres) Connect(ctx context.Context) error {
 	return err
 }
 
-// Disconnect close all connections
+// Disconnect close all connections with PostgreSQL.
 func (postg *ToPostgres) Disconnect() {
 	db.Close()
 }

@@ -15,12 +15,14 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
+// AWS creds.
 var (
 	awsbucketName = "item-keeper-demo"
 	awsregion     = "eu-central-1"
 	s3client      *s3.S3
 )
 
+// createSession create connection.
 func createSession() error {
 	sess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(awsregion),
@@ -36,6 +38,7 @@ func createSession() error {
 	return nil
 }
 
+// uploadFileS3 uploads file to S3.
 func uploadFileS3(file *File) error {
 
 	// Upload the data to S3
@@ -51,6 +54,7 @@ func uploadFileS3(file *File) error {
 	return nil
 }
 
+// downloadS3 returns file.
 func downloadS3(file *File) ([]byte, error) {
 
 	// Download file from S3
@@ -73,6 +77,7 @@ func downloadS3(file *File) ([]byte, error) {
 	return data, err
 }
 
+// deleteS3 removed file from S3
 func deleteS3(files []File) error {
 
 	// create a list of objects to be deleted

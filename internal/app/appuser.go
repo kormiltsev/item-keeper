@@ -16,16 +16,20 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// variables define User and his password and last update date
 var (
 	currentuser string = "AppUser"
 	// currentuserpassword    string
-	currentuserencryptokey string = "manualLocalKey"
+	currentuserencryptokey []byte = []byte("manualLocalKey")
 	currentlastupdate      int64  = 0
 )
 
-func SaveUserCryptoPass(secretword string) {
+// SaveUserCryptoPass save secret to var from UI.
+func SaveUserCryptoPass(secretword []byte) {
 	currentuserencryptokey = secretword
 }
+
+// RegUser request server to create new user. Returns error 'user exists'.
 func RegUser(ctx context.Context, login, password string) error {
 
 	// set context with time limit
@@ -74,6 +78,7 @@ func RegUser(ctx context.Context, login, password string) error {
 	return nil
 }
 
+// encodeLoginPass encode login and pawwsord to share with server.
 func encodeLoginPass(login, password string) (string, string) {
 	h := sha1.New()
 	h.Write([]byte(login))
@@ -85,6 +90,7 @@ func encodeLoginPass(login, password string) (string, string) {
 	return login, password
 }
 
+// AuthUser request server for User ID. Returns err 'wrong login/password'.
 func AuthUser(ctx context.Context, login, password string) error {
 
 	// set context with time limit

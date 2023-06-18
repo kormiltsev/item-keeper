@@ -9,10 +9,10 @@ import (
 	"io"
 )
 
-func FileEncrypt(plaintext []byte, keystring string) ([]byte, error) {
+func FileEncrypt(plaintext, keystring []byte) ([]byte, error) {
 
 	// Key
-	key := sha256.Sum256([]byte(keystring))
+	key := sha256.Sum256(keystring)
 
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
@@ -37,10 +37,10 @@ func FileEncrypt(plaintext []byte, keystring string) ([]byte, error) {
 	return ciphertext, nil
 }
 
-func FileDecrypt(ciphertext []byte, keystring string) ([]byte, error) {
+func FileDecrypt(ciphertext, keystring []byte) ([]byte, error) {
 
 	// Key
-	key := sha256.Sum256([]byte(keystring))
+	key := sha256.Sum256(keystring)
 
 	block, err := aes.NewCipher(key[:])
 	if err != nil {

@@ -29,6 +29,7 @@ type ServiceConfigs struct {
 	S3secretKey       string `json:"s3_secret_key" env:"AWS_SECRET_ACCESS_KEY"`
 }
 
+// local configs
 var (
 	ServiceConfig = ServiceConfigs{}
 	onceUpload    sync.Once

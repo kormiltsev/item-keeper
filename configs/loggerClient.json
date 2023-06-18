@@ -1,7 +1,7 @@
 {
     "level": "debug",
     "encoding": "json",
-    "outputPaths": ["./clientLogs.log"],
+    "outputPaths": ["./ikeeper.log"],
     "errorOutputPaths": ["stderr"],
     "encoderConfig": {
       "messageKey": "message",

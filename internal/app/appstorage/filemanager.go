@@ -2,6 +2,7 @@ package appstorage
 
 import (
 	"bufio"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -39,7 +40,7 @@ func deleteFolderByItemID(userid string, itemid int64) error {
 	return nil
 }
 
-func (file *File) PrepareFile(pass string) error {
+func (file *File) PrepareFile(pass []byte) error {
 	//read file
 	bytes, size, err := readFile(file.Address)
 	if err != nil {
@@ -59,21 +60,36 @@ func (file *File) PrepareFile(pass string) error {
 	return nil
 }
 
-func (file *File) SaveFileLocal(pass string) error {
+func (file *File) SaveFileLocal(pass []byte) error {
+	// file name decrypto
+	flenamebytes, err := base64.StdEncoding.DecodeString(file.FileName)
+	if err != nil {
+		file.FileName = "file"
+	} else {
+		flenamebytes, err = FileDecrypt(flenamebytes, pass)
+		if err != nil {
+			file.FileName = "file"
+		} else {
+			file.FileName = string(flenamebytes)
+		}
+	}
+
+	log.Println("starts SaveFileLocal, file name:", file.FileName)
 	if file.FileID == 0 {
 		return fmt.Errorf("fileID not ready, file not saved local, need run request for files")
 	}
 
 	// check body
 	if len(file.Body) == 0 {
-		return fmt.Errorf("empty file.Body in file %d", file.FileID)
+		return fmt.Errorf("empty file.Body in file %s", file.FileName)
 	}
 
 	// create path localstorage/userid/itemid
+	log.Println("save file USERID:", file.UserID)
 	path := itemFolderPass(file.UserID, file.ItemID)
 
 	// create folder if not exists
-	err := os.MkdirAll(path, os.ModePerm)
+	err = os.MkdirAll(path, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("can't create local directory %s, error:%v", path, err)
 	}
@@ -82,7 +98,7 @@ func (file *File) SaveFileLocal(pass string) error {
 	decodedfile, err := FileDecrypt(file.Body, pass)
 
 	// write file
-	path = filepath.Join(path, strconv.FormatInt(file.FileID, 10))
+	path = filepath.Join(path, strconv.FormatInt(file.FileID, 10)+"-"+file.FileName)
 	err = os.WriteFile(path, decodedfile, 0644)
 	if err != nil {
 		return fmt.Errorf("write file %s error:%v", path, err)

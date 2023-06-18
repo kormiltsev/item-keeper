@@ -18,6 +18,13 @@ const (
 	defaultClientToken = "DefaultClientToken"
 )
 
+// default values
+var (
+	presetgrpcAddress = ""
+	presetDataFolder  = ""
+	presetClientToken = ""
+)
+
 // ServiceConfigs is list of parameters
 type ClientConfigs struct {
 	GRPCaddress string `json:"grpc_address" env:"IKEEPER_GRPC_ADDRESS"`
@@ -26,9 +33,26 @@ type ClientConfigs struct {
 	ConfigFile  string `json:"-" env:"IKEEPER_CONFIG_FILE"`
 }
 
+// Client's confiogs
 var (
 	ClientConfig = ClientConfigs{}
 	onceUpload   sync.Once
+)
+
+/*
+	version and other app info. Presetted with building process:
+
+go build -o bin/ikeeper-amd64-darwin -ldflags "
+-X 'github.com/kormiltsev/item-keeper/internal/configsClient.buildVersion=1.0'
+-X 'github.com/kormiltsev/item-keeper/internal/configsClient.buildDate=$(date +'%Y/%m/%d %H:%M:%S')'
+-X 'github.com/kormiltsev/item-keeper/internal/configsClient.buildCommit=commit'
+-X 'github.com/kormiltsev/item-keeper/internal/configsClient.presetgrpcAddress=188.227.85.116:3333'
+-X 'github.com/kormiltsev/item-keeper/internal/configsClient.presetClientToken=darwin'" ./cmd/client/client.go
+*/
+var (
+	buildVersion string = "0.7 (default)"
+	buildDate    string = "no data set"
+	buildCommit  string = "default"
 )
 
 // UploadConfigs gets parameters from Flags, ENV(priority), file.json(low priority).
@@ -37,11 +61,11 @@ func UploadConfigsClient() (*ClientConfigs, string) {
 
 		// from flags
 		ClientConfig.Flags()
-		log.Println("configs after flags:", ClientConfig)
+		//log.Println("configs after flags:", ClientConfig)
 
 		// from environment
 		ClientConfig.Environment()
-		log.Println("configs after ENV:", ClientConfig)
+		//log.Println("configs after ENV:", ClientConfig)
 
 		// from file.fson
 		if ClientConfig.ConfigFile != "" {
@@ -50,19 +74,33 @@ func UploadConfigsClient() (*ClientConfigs, string) {
 
 		ClientConfig.SetDefaultConfigs()
 	})
-	return &ClientConfig, fmt.Sprintf("%s\nService address:%s\nFile folder:%s\n", printVersion(), ClientConfig.GRPCaddress, ClientConfig.FileFolder)
+	return &ClientConfig, fmt.Sprintf("%s\nService address:%s\nFile folder:%s\n", PrintVersion(), ClientConfig.GRPCaddress, ClientConfig.FileFolder)
 }
 
 // SetDefaultConfigs set default parameters
 func (sc *ClientConfigs) SetDefaultConfigs() {
-	if ClientConfig.GRPCaddress == "" {
-		ClientConfig.GRPCaddress = defaultgrpcAddress
+	if presetgrpcAddress != "" {
+		ClientConfig.GRPCaddress = presetgrpcAddress
+	} else {
+		if ClientConfig.GRPCaddress == "" {
+			ClientConfig.GRPCaddress = defaultgrpcAddress
+		}
 	}
-	if ClientConfig.FileFolder == "" {
-		ClientConfig.FileFolder = defaultDataFolder
+
+	if presetDataFolder != "" {
+		ClientConfig.FileFolder = presetDataFolder
+	} else {
+		if ClientConfig.FileFolder == "" {
+			ClientConfig.FileFolder = defaultDataFolder
+		}
 	}
-	if ClientConfig.ClientToken == "" {
-		ClientConfig.ClientToken = defaultClientToken
+
+	if presetClientToken != "" {
+		ClientConfig.ClientToken = presetClientToken
+	} else {
+		if ClientConfig.ClientToken == "" {
+			ClientConfig.ClientToken = defaultClientToken
+		}
 	}
 }
 
@@ -106,7 +144,7 @@ func (sc *ClientConfigs) FromConfigFile() {
 			return
 		}
 
-		log.Println("configs from file: ", envFromFile)
+		//log.Println("configs from file: ", envFromFile)
 
 		if sc.GRPCaddress == "" {
 			sc.GRPCaddress = envFromFile.GRPCaddress
@@ -122,14 +160,8 @@ func (sc *ClientConfigs) FromConfigFile() {
 	}
 }
 
-var (
-	buildVersion string = "0.7"
-	buildDate    string = "170623"
-	buildCommit  string = "diploma"
-)
-
-// printVersion show current app version
-func printVersion() string {
+// PrintVersion show current app version
+func PrintVersion() string {
 	return fmt.Sprintf("Build version: %s\nBuild date: %s\nBuild commit: %s",
 		buildVersion,
 		buildDate,

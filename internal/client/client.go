@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+// ClientSettings contains server(gRPC) address, client's token name and token value, link on connection.
 type ClientSettings struct {
 	port        string
 	tokenName   string
@@ -19,15 +20,17 @@ type ClientSettings struct {
 	Connection  *grpc.ClientConn
 }
 
+// ClientSettings store settings.
 var ClientSet = ClientSettings{
 	port:        ":3333",
 	tokenName:   "CLIENT_TOKEN",
 	clientToken: "clientToken",
 }
 
+// UploadConfigsCli upload settings from env and files.
 func UploadConfigsCli() string {
 	con, welcomLetter := configs.UploadConfigsClient()
-	log.Println("configs uploaded:", con)
+	//log.Println("configs uploaded:", con)
 	ClientSet.port = con.GRPCaddress
 	ClientSet.clientToken = con.ClientToken
 	return welcomLetter

@@ -2,6 +2,7 @@ package serverstorage
 
 import "errors"
 
+// Item is one unique entity. One row in table of items.
 type Item struct {
 	ItemID  int64
 	UserID  string
@@ -10,15 +11,18 @@ type Item struct {
 	Deleted bool
 }
 
+// File is one unique entity. One row in table of files.
 type File struct {
-	FileID  int64
-	UserID  string
-	ItemID  int64
-	Address string
-	Body    []byte
-	Deleted bool
+	FileID   int64
+	UserID   string
+	ItemID   int64
+	FileName string
+	Address  string
+	Body     []byte
+	Deleted  bool
 }
 
+// User is one unique entity. One row in table of users.
 type User struct {
 	Login         string
 	Password      string

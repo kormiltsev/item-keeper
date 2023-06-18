@@ -15,10 +15,11 @@ type Item struct {
 }
 
 type File struct {
-	FileID  int64
-	UserID  string
-	ItemID  int64
-	Address string // for storage
-	Body    []byte // not for storage
-	Hash    string // not for storage
+	FileID   int64
+	UserID   string
+	ItemID   int64
+	FileName string
+	Address  string // for storage
+	Body     []byte // not for storage
+	Hash     string // not for storage
 }

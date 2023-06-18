@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-// StartServer connect to DB
+// StartServer connect to DB.
 func StartServer(ctx context.Context, close chan struct{}) {
 
 	con := configs.UploadConfigs()
@@ -30,7 +30,7 @@ func StartServer(ctx context.Context, close chan struct{}) {
 	<-close
 }
 
-// StartServerGRPC run grpc server
+// StartServerGRPC starts grpc server.
 func StartServerGRPC(port string) {
 	listen, err := net.Listen("tcp", port)
 	if err != nil {

@@ -35,12 +35,15 @@ type Operator struct {
 	UserID          string
 	Mapa            *List
 	LastUpdate      int64
+	ID              int64
+	QuickSearch     string
 	Search          map[string][]string
 	Answer          map[int64]*Item
 	AnswerAddresses map[int64][]string
 }
 
 var ErrEmptyRequest = fmt.Errorf("empty request")
+var ErrNotFound = fmt.Errorf("not found")
 
 func newCatalog(userid string, lastUpdate int64) {
 	Catalog.mu.Lock()
@@ -62,10 +65,11 @@ func NewUser(userid string, lastUpdate int64) {
 
 func NewItem(userid string) *Item {
 	return &Item{
-		UserID:        userid,
-		Parameters:    make([]Parameter, 0),
-		FileIDs:       make([]int64, 0),
-		UploadAddress: make([]string, 0),
+		UserID:         userid,
+		Parameters:     make([]Parameter, 0),
+		FileIDs:        make([]int64, 0),
+		UploadAddress:  make([]string, 0),
+		LocalAddresses: make([]string, 0),
 	}
 }
 
@@ -90,11 +94,58 @@ func (op *Operator) PutItems(items ...*Item) error {
 
 	for _, item := range items {
 		// add item to catalog
+		// olditem, ok := op.Mapa.Items[item.ItemID]
+		// if ok && olditem.FileIDs != nil {
+		// 	item.FileIDs = olditem.FileIDs
+		// }
 		op.Mapa.Items[item.ItemID] = item
 
 		// register item in parameters map
 		for _, par := range item.Parameters {
 			op.Mapa.parameters[par.Name] = append(op.Mapa.parameters[par.Name], item.ItemID)
+		}
+	}
+	return nil
+}
+
+func (op *Operator) FindItemByID() error {
+	var ok bool
+	// if empty request
+	if op.ID == 0 {
+		return ErrEmptyRequest
+	}
+
+	op.Mapa.mu.Lock()
+	defer op.Mapa.mu.Unlock()
+
+	op.Answer[op.ID], ok = op.Mapa.Items[op.ID]
+	if !ok {
+		return ErrNotFound
+	}
+
+	// add file local addresses
+	op.AnswerAddresses[op.ID] = op.addFilesAddresses(op.ID)
+
+	return nil
+}
+
+func (op *Operator) FindItemQuick() error {
+	// if empty request
+	if op.QuickSearch == "" {
+		return ErrEmptyRequest
+	}
+
+	op.Mapa.mu.Lock()
+	defer op.Mapa.mu.Unlock()
+
+	// for every item
+	for id, itm := range op.Mapa.Items {
+		for _, par := range itm.Parameters {
+
+			if strings.Contains(par.Value, op.QuickSearch) {
+				op.Answer[id] = op.Mapa.Items[id]
+				op.AnswerAddresses[id] = op.addFilesAddresses(id)
+			}
 		}
 	}
 	return nil
@@ -206,8 +257,37 @@ func (op *Operator) UploadFilesAddresses() error {
 	for k, item := range op.Mapa.Items {
 		op.Mapa.Items[k].LocalAddresses = op.Mapa.Items[k].LocalAddresses[:0]
 		for _, fileid := range item.FileIDs {
-			op.Mapa.Items[k].LocalAddresses = append(op.Mapa.Items[k].LocalAddresses, op.Mapa.Files[fileid].Address)
+			fileRegistered, ok := op.Mapa.Files[fileid]
+			if !ok {
+				return fmt.Errorf("file not found")
+			}
+			op.Mapa.Items[k].LocalAddresses = append(op.Mapa.Items[k].LocalAddresses, fileRegistered.Address)
 		}
 	}
 	return nil
+}
+
+func (op *Operator) ReturnFileIDByAddress(address string) int64 {
+	op.Mapa.mu.Lock()
+	defer op.Mapa.mu.Unlock()
+
+	for k, fle := range op.Mapa.Files {
+		if fle.Address == address {
+			return k
+		}
+	}
+	return 0
+}
+
+func (op *Operator) DeleteFileByID(fileid int64) {
+	op.Mapa.mu.Lock()
+
+	fle, ok := op.Mapa.Files[fileid]
+	if !ok {
+		return
+	}
+
+	op.Mapa.mu.Unlock()
+
+	fle.DeleteFileLocal()
 }
