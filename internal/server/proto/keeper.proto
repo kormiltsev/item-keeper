@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package item_keeper;
+
+option go_package = "item_keeper/internal/server/proto";
+
+message Item {
+	int64 itemid = 1;
+	string userid = 2;
+	string body = 3;
+	repeated int64 filesid = 4;
+	bool deleted = 5;
+}
+
+message File {
+	int64 itemid = 1;
+	string userid = 2;
+	int64 fileid = 3;
+	string filename = 4;
+    bytes body = 5;
+	bytes hash = 6;
+	bool deleted = 7;
+}
+
+message RegUserRequest {
+    string login = 1;
+	string password = 2;
+}
+message RegUserResponse {
+	string userid = 1;
+	int64 lastupdate = 2;
+}
+
+message AuthUserRequest {
+    string login = 1;
+	string password = 2;
+}
+message AuthUserResponse {
+	string userid = 1;
+}
+
+message PutItemsRequest {
+    Item item = 1;
+}
+message PutItemsResponse {
+    Item item = 1;
+}
+
+message UploadFileRequest {
+	File file = 1;
+ }
+ message UploadFileResponse {
+	int64 fileid = 1;  
+	string userid = 2;
+    int64 itemid = 3;
+	string filename = 4;
+ }
+
+ message UpdateByLastUpdateRequest {
+	string userid = 1;
+    int64 lastupdate = 2;
+ }
+ message UpdateByLastUpdateResponse {
+	int64 lastupdate = 1;
+    repeated Item item = 2;
+	repeated File file = 3;
+ }
+
+ message GetFileByFileIDRequest {
+	string userid = 1;
+    int64 fileid = 2;
+ }
+ message GetFileByFileIDResponse {
+	File file = 1;
+ }
+
+ message DeleteEntityRequest {
+	string userid = 1;
+	repeated int64 itemid = 2;
+	repeated int64 fileid = 3; 
+}
+ message DeleteEntityResponse {
+	string userid = 1;
+	repeated int64 itemid = 2;
+	repeated int64 fileid = 3; 
+ }
+
+ service ItemKeeper {
+    rpc RegUser(RegUserRequest) returns (RegUserResponse);
+    rpc AuthUser(AuthUserRequest) returns (AuthUserResponse);
+    rpc PutItems(PutItemsRequest) returns (PutItemsResponse);
+    rpc UploadFile(UploadFileRequest) returns (UploadFileResponse);
+    rpc UpdateByLastUpdate(UpdateByLastUpdateRequest) returns (UpdateByLastUpdateResponse);
+    rpc GetFileByFileID(GetFileByFileIDRequest) returns (GetFileByFileIDResponse);
+    rpc DeleteEntity(DeleteEntityRequest) returns (DeleteEntityResponse);
+  }
